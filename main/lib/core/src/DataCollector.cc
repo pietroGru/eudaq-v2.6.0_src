@@ -5,6 +5,10 @@
 #include <ostream>
 #include <ctime>
 #include <iomanip>
+
+#include "eudaq/FileNamer.hh"
+
+
 namespace eudaq {
   template class DLLEXPORT Factory<DataCollector>;
   template DLLEXPORT std::map<uint32_t, typename Factory<DataCollector>::UP_BASE (*)
@@ -96,6 +100,7 @@ namespace eudaq {
       m_data_addr = Listen(m_data_addr);
       SetStatusTag("_SERVER", m_data_addr);
       m_writer = Factory<FileWriter>::Create<std::string&>(str2hash(m_fwtype), m_fwpatt);
+      // EUDAQ_INFO("--- Filepath ---" + std::string(FileNamer(m_fwpatt).Set('X', ".root").Set('R', GetRunNumber())));
       m_evt_c = 0;
 
       std::string mn_str = GetConfiguration()->Get("EUDAQ_MN", "");

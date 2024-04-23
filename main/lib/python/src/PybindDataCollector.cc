@@ -15,6 +15,10 @@ class PyDataCollector : public eudaq::DataCollector {
 public:
   using eudaq::DataCollector::DataCollector;
   
+  int32_t var1 = 66;
+  const int& GetVar1() { return var1; }
+  void SetVar1(int32_t v) { var1 = v; }
+
   void DoInitialise() override {
     PYBIND11_OVERLOAD(void, /* Return type */
 		      eudaq::DataCollector,
@@ -83,8 +87,7 @@ public:
 };
 
 void init_pybind_datacollector(py::module &m){
-  py::class_<eudaq::DataCollector, PyDataCollector, std::shared_ptr<eudaq::DataCollector>>
-    datacollector_(m, "DataCollector");
+  py::class_<eudaq::DataCollector, PyDataCollector, std::shared_ptr<eudaq::DataCollector>> datacollector_(m, "DataCollector");
   datacollector_.def(py::init([](const std::string &name,const std::string &runctrl){return PyDataCollector::Make("PyDataCollector", name, runctrl);}));
 //  datacollector_.def("DoInitialise", &eudaq::DataCollector::DoInitialise);
 //  datacollector_.def("DoConfigure", &eudaq::DataCollector::DoConfigure);
@@ -108,5 +111,10 @@ void init_pybind_datacollector(py::module &m){
   datacollector_.def("IsConnected", &eudaq::DataCollector::IsConnected);
   datacollector_.def("GetConfiguration", &eudaq::DataCollector::GetConfiguration);
   datacollector_.def("GetInitConfiguration", &eudaq::DataCollector::GetInitConfiguration);
-
+  // I want to access the RunNumber
+  datacollector_.def("GetRunNumber", &eudaq::DataCollector::GetRunNumber);
+  datacollector_.def("GetVar1", [](PyDataCollector &self){ return self.GetVar1();});
+  datacollector_.def("SetVar1", [](PyDataCollector &self, int32_t v){ self.SetVar1(v);});
+  // datacollector_.def_property_readonly_static("var1", [](PyDataCollector  &self) { return self.var1; });
+  // datacollector_.def_readwrite("var3", &eudaq::DataCollector::testVar);
 }
