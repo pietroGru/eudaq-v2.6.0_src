@@ -63,7 +63,7 @@ void init_pybind_monitor(py::module &m){
   monitor_.def("DoReset", &eudaq::Monitor::DoReset);
   monitor_.def("DoTerminate", &eudaq::Monitor::DoTerminate);
   monitor_.def("DoReceive", &eudaq::Monitor::DoReceive,
-	       "Called when an event is recievied", py::arg("ev"));
+	       "Called when an event is received", py::arg("ev"));
   monitor_.def("SetServerAddress", &eudaq::Monitor::SetServerAddress,
 	       "Set port of the data listening", py::arg("addr"));
   monitor_.def("Connect", &eudaq::Monitor::Connect);
