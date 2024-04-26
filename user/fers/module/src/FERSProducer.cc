@@ -1,12 +1,3 @@
-/////////////////////////////////////////////////////////////////////
-//                         2023 May 08                             //
-//                   authors: R. Persiani & F. Tortorici           //
-//                email: rinopersiani@gmail.com                    //
-//                email: francesco.tortorici@ct.infn.it            //
-//                        notes:                                   //
-/////////////////////////////////////////////////////////////////////
-
-
 #include "eudaq/Producer.hh"
 #include "FERS_Registers.h"
 #include "FERSlib.h"
@@ -17,6 +8,7 @@
 #include <thread>
 #include <random>
 #include "stdlib.h"
+
 #ifndef _WIN32
 #include <sys/file.h>
 #endif
@@ -24,6 +16,7 @@
 #include "FERS_EUDAQ.h"
 #include "configure.h"
 #include "JanusC.h"
+
 RunVars_t RunVars;
 int SockConsole;	// 0: use stdio console, 1: use socket console
 char ErrorMsg[250];	
@@ -228,11 +221,11 @@ void FERSProducer::DoConfigure(){
 		
 	}
 	//
-	FILE* conf_file = fopen(fers_final_filename.c_str(),"r"); //check
+	FILE* conf_file = fopen(fers_conf_filename.c_str(),"r"); //check
 
 	if (conf_file == NULL) 
 	{
-		EUDAQ_THROW("unable to open config file "+fers_final_filename);
+		EUDAQ_THROW("unable to open config file "+fers_conf_filename);
 	} else {
 		ret = ParseConfigFile(conf_file,&WDcfg, 1);
 		if (ret != 0)
@@ -381,7 +374,7 @@ void FERSProducer::RunLoop(){
 		// real data
 		// 
 		status = FERS_GetEvent(vhandle, &bindex, &DataQualifier, &tstamp_us, &Event, &nb);
-		
+
 		// event creation
 		if ( DataQualifier >0 ) {
 			if(m_flag_ts){
