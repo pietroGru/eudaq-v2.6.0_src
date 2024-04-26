@@ -1,3 +1,12 @@
+/////////////////////////////////////////////////////////////////////
+//                         2023 May 08                             //
+//                   authors: R. Persiani & F. Tortorici           //
+//                email: rinopersiani@gmail.com                    //
+//                email: francesco.tortorici@ct.infn.it            //
+//                        notes:                                   //
+/////////////////////////////////////////////////////////////////////
+
+
 #include "eudaq/Producer.hh"
 #include "FERS_Registers.h"
 #include "FERSlib.h"
@@ -8,7 +17,6 @@
 #include <thread>
 #include <random>
 #include "stdlib.h"
-
 #ifndef _WIN32
 #include <sys/file.h>
 #endif
@@ -16,7 +24,6 @@
 #include "FERS_EUDAQ.h"
 #include "configure.h"
 #include "JanusC.h"
-
 RunVars_t RunVars;
 int SockConsole;	// 0: use stdio console, 1: use socket console
 char ErrorMsg[250];	
@@ -125,13 +132,13 @@ void FERSProducer::DoInitialise(){
 	char ip_address[20];
 	char connection_path[40];
 	strcpy(ip_address, fers_ip_address.c_str());
-	//sprintf(connection_path,"eth:%s",ip_address);
-	//std::cout <<"----3333---- "<<connection_path<<std::endl;
+	sprintf(connection_path,"eth:%s",ip_address);
+	// std::cout <<"----3333---- "<<connection_path<<std::endl;
 	int ret = FERS_OpenDevice(connection_path, &handle);
 
-	//std::cout <<"-------- ret= "<<ret<<" handle = "<<handle<<std::endl;
+	// std::cout <<"-------- ret= "<<ret<<" handle = "<<handle<<std::endl;
 	if(ret == 0){
-		//std::cout <<"Connected to: "<< connection_path<<std::endl;
+		// std::cout <<"Connected to: "<< connection_path<<std::endl;
 		vhandle[WDcfg.NumBrd] = handle;
 		brd=shmp->connectedboards;
 		shmp->connectedboards++;
@@ -155,11 +162,11 @@ void FERSProducer::DoInitialise(){
 	strcpy(shmp->location[brd], fers_id.c_str());
 	strcpy(shmp->producer[brd], fers_prodid.c_str());
 
-	//std::cout <<" ------- RINO ----------   "<<fers_ip_address
-	//	<<" handle "<<handle
-	//	<<" ROmode "<<ROmode<<"  allocsize "<<allocsize
-	//	<<"Connected to: "<< connection_path 
-	//	<< " "<<fers_id<<std::endl;
+	// std::cout <<" ------- RINO ----------   "<<fers_ip_address
+		// <<" handle "<<handle
+		// <<" ROmode "<<ROmode<<"  allocsize "<<allocsize
+		// <<"Connected to: "<< connection_path 
+		// << " "<<fers_id<<std::endl;
 	EUDAQ_INFO("Connected to handle "+std::to_string(handle)
 			+" ip "+fers_ip_address+" "+fers_id
 			+" connectedboards "+std::to_string(shmp->connectedboards)
@@ -176,7 +183,7 @@ void FERSProducer::DoInitialise(){
 //----------DOC-MARK-----BEG*CONF-----DOC-MARK----------
 void FERSProducer::DoConfigure(){
 	auto conf = GetConfiguration();
-	//conf->Print(std::cout);
+	// conf->Print(std::cout);
 	m_plane_id = conf->Get("EX0_PLANE_ID", 0);
 	m_ms_busy = std::chrono::milliseconds(conf->Get("EX0_DURATION_BUSY_MS", 50));
 	m_flag_ts = conf->Get("EX0_ENABLE_TIMESTAMP", 0);
@@ -194,38 +201,38 @@ void FERSProducer::DoConfigure(){
 	m_HG_Gain = conf->Get("FERS_HG_Gain",0);
 	fers_final_filename = conf->Get("FERS_MODIFIED_FOLDER","")+"FERS_"+std::to_string(m_plane_id)+"_run_"+std::to_string(GetRunNumber())+"_"+std::to_string(current_time)+".txt";
 	fers_acq_mode = conf->Get("FERS_ACQ_MODE",0);
-	//std::cout<<"in FERSProducer::DoConfigure, handle = "<< handle<< " file "<<fers_final_filename<< " m_LG_Gain "<<m_LG_Gain<< std::endl;
+	// std::cout<<"in FERSProducer::DoConfigure, handle = "<< handle<< " file "<<fers_final_filename<< " m_LG_Gain "<<m_LG_Gain<< std::endl;
 	
 	int ret = -1; // to store return code from calls to fers
 	//EUDAQ_WARN(fers_conf_dir);
 	//EUDAQ_WARN(fers_conf_filename);
 	std::ifstream input_file(fers_conf_filename.c_str());
-	//std::cout<<fers_conf_filename<<std::endl;
+	// std::cout<<fers_conf_filename<<std::endl;
 	std::ofstream new_file(fers_final_filename.c_str());
 	if (input_file.good() && new_file.good()){
-		//std::cout<<"Fers Files open"<<std::endl;
+		// std::cout<<"Fers Files open"<<std::endl;
 		input_file.seekg(0, std::ios::end);    
 		long length = input_file.tellg();           
 		input_file.seekg(0, std::ios::beg);  
-		//std::cout << "file size: " << length << std::endl;
+		// std::cout << "file size: " << length << std::endl;
 		for (std::string input_line; std::getline(input_file, input_line); ) {
 			if ((input_line.find("LG_Gain")!=std::string::npos) && (m_LG_Gain >0)) input_line = "LG_Gain                            "+std::to_string(m_LG_Gain);
 			if ((input_line.find("HG_Gain")!=std::string::npos) && (m_HG_Gain >0)) input_line = "HG_Gain                            "+std::to_string(m_HG_Gain);
 			new_file<<input_line<<"\n";
-			//std::cout<<input_line<<std::endl;
+			// std::cout<<input_line<<std::endl;
 		}
 	input_file.close();
 	new_file.close();
 	} else {
-		//std::cout<<"Files not open"<<std::endl;
+		// std::cout<<"Files not open"<<std::endl;
 		
 	}
 	//
-	FILE* conf_file = fopen(fers_conf_filename.c_str(),"r"); //check
+	FILE* conf_file = fopen(fers_final_filename.c_str(),"r"); //check
 
 	if (conf_file == NULL) 
 	{
-		EUDAQ_THROW("unable to open config file "+fers_conf_filename);
+		EUDAQ_THROW("unable to open config file "+fers_final_filename);
 	} else {
 		ret = ParseConfigFile(conf_file,&WDcfg, 1);
 		if (ret != 0)
@@ -247,23 +254,23 @@ void FERSProducer::DoConfigure(){
 	fers_hv_imax = conf->Get("FERS_HV_IMax", 0);
 	float fers_dummyvar = 0;
 	int ret_dummy = 0;
-	//std::cout << "\n**** FERS_HV_Imax from config: "<< fers_hv_imax <<  std::endl; 
+	// std::cout << "\n**** FERS_HV_Imax from config: "<< fers_hv_imax <<  std::endl; 
 	ret = HV_Set_Imax( handle, fers_hv_imax);
 	ret = HV_Set_Imax( handle, fers_hv_imax);
 	ret_dummy = HV_Get_Imax( handle, &fers_dummyvar); // read back from fers
 	if (ret == 0) {
 		EUDAQ_INFO("I max set!");
-		//std::cout << "**** readback Imax value: "<< fers_dummyvar << std::endl;
+		// std::cout << "**** readback Imax value: "<< fers_dummyvar << std::endl;
 	} else {
 		EUDAQ_THROW("I max NOT set");
 	}
-	//std::cout << "\n**** FERS_HV_Vbias from config: "<< fers_hv_vbias << std::endl;
+	// std::cout << "\n**** FERS_HV_Vbias from config: "<< fers_hv_vbias << std::endl;
 	ret = HV_Set_Vbias( handle, fers_hv_vbias); // send to fers
 	ret = HV_Set_Vbias( handle, fers_hv_vbias); // send to fers
 	ret_dummy = HV_Get_Vbias( handle, &fers_dummyvar); // read back from fers
 	if (ret == 0) {
 		EUDAQ_INFO("HV bias set!");
-		//std::cout << "**** readback HV value: "<< fers_dummyvar << std::endl;
+		// std::cout << "**** readback HV value: "<< fers_dummyvar << std::endl;
 	} else {
 		EUDAQ_THROW("HV bias NOT set");
 	}
@@ -374,7 +381,7 @@ void FERSProducer::RunLoop(){
 		// real data
 		// 
 		status = FERS_GetEvent(vhandle, &bindex, &DataQualifier, &tstamp_us, &Event, &nb);
-
+		
 		// event creation
 		if ( DataQualifier >0 ) {
 			if(m_flag_ts){
@@ -391,27 +398,27 @@ void FERSProducer::RunLoop(){
 				ev->SetTag("HGgain", std::to_string(m_HG_Gain));
 				ev->SetTag("fers_final_filename", fers_final_filename);
 			}
-			//std::cout<<"--FERS_ReadoutStatus (0=idle, 1=running) = " << FERS_ReadoutStatus <<std::endl;
-			//std::cout<<"--status of FERS_GetEvent (0=No Data, 1=Good Data 2=Not Running, <0 = error) = "<< std::to_string(status)<<std::endl;
-			//std::cout<<"  --bindex = "<< std::to_string(bindex) <<" tstamp_us = "<< std::to_string(tstamp_us) <<std::endl;
-			//std::cout<<"  --DataQualifier = "<< std::to_string(DataQualifier) +" nb = "<< std::to_string(nb) <<std::endl;
+			// std::cout<<"--FERS_ReadoutStatus (0=idle, 1=running) = " << FERS_ReadoutStatus <<std::endl;
+			// std::cout<<"--status of FERS_GetEvent (0=No Data, 1=Good Data 2=Not Running, <0 = error) = "<< std::to_string(status)<<std::endl;
+			// std::cout<<"  --bindex = "<< std::to_string(bindex) <<" tstamp_us = "<< std::to_string(tstamp_us) <<std::endl;
+			// std::cout<<"  --DataQualifier = "<< std::to_string(DataQualifier) +" nb = "<< std::to_string(nb) <<std::endl;
 			
 			std::vector<uint8_t> data;
 			if (DataQualifier ==17) DataQualifier=1;
 			//make_header(handle, x_pixel, y_pixel, DataQualifier, &data);
 			//make_header(brd, DataQualifier, &data);
-			//std::cout<<"producer > " << "x_pixel: " <<	x_pixel << " y_pixel: " << y_pixel << " DataQualifier : " <<	DataQualifier << std::endl;
+			// std::cout<<"producer > " << "x_pixel: " <<	x_pixel << " y_pixel: " << y_pixel << " DataQualifier : " <<	DataQualifier << std::endl;
 			double run_time =  ev->GetTimestampEnd() -  ev->GetTimestampBegin();
 			FERSpack_CLEAR_event(Event, m_plane_id, GetRunNumber(), trigger_n, (double)ev->GetTimestampEnd(), (double)ev->GetTimestampBegin(), data);
-			//std::cout<<"after eventpack, size "<<data.size()<<std::endl;
+			// std::cout<<"after eventpack, size "<<data.size()<<std::endl;
 			uint32_t block_id = m_plane_id;
 			ev->SetRunN(GetRunNumber());
 			ev->SetEventN(trigger_n);
 			//for(int i =0; i<data.size(); i++){
-			//	//std::cout<<data.at(i)<<" ";
+			//	std::cout<<data.at(i)<<" ";
 			//	
 			//}
-			////std::cout<<std::endl;
+			//std::cout<<std::endl;
 			ev->AddBlock(block_id, data);
 			SendEvent(std::move(ev));
 			trigger_n++;
