@@ -24,21 +24,23 @@
 std::fstream runfile[MAX_NBRD]; // pointers to ascii output data files
 
 struct FERS_nametypes{
-            int run;//",         np.array([0], dtype=np.uint32),             "run/i",            "Run id number"),
+            unsigned int run;//",         np.array([0], dtype=np.uint32),             "run/i",            "Run id number"),
             double runTime;//",     np.array([0], dtype=np.float64),            "runTime/D",        "Posix time of the run start on the PC"),
-            int event;//",       np.array([0], dtype=np.uint32),             "event/i",          "Event id number"),
+            unsigned int event;//",       np.array([0], dtype=np.uint32),             "event/i",          "Event id number"),
             double timestamp[2];//",   np.array([0,0], dtype=np.float64),          "timestamp[2]/D",   "Event posix timestamp (absolute)"),
-            int fers_evt[2];//",    np.array([0,0], dtype=np.uint32),           "fers_evt[2]/i",    "FERS event ID [0-1000]"),
+            unsigned int fers_evt[2];//",    np.array([0,0], dtype=np.uint32),           "fers_evt[2]/i",    "FERS event ID [0-1000]"),
             double fers_trgtime[2];//",np.array([0,0], dtype=np.float64),          "fers_trgtime[2]/D","FERS trigger time from run start [us]"),
-            u_int fers_ch0[64];//",    np.zeros(64, dtype=np.uint32),              "fers_ch0[64]/i",   "FERS ch det0 [uint32]"),
-            u_int fers_ch1[64];//",    np.zeros(64, dtype=np.uint32),              "fers_ch1[64]/i",   "FERS ch det1 [uint32]"),
-            u_int strip0[64];//",      np.zeros(64, dtype=np.uint32),              "strip0[64]/i",     "Strip ID det0 [uint32]"),
-            u_int strip1[64];//",      np.zeros(64, dtype=np.uint32),              "strip1[64]/i",     "Strip ID det1 [uint32]"),
+            unsigned int fers_ch0[64];//",    np.zeros(64, dtype=np.uint32),              "fers_ch0[64]/i",   "FERS ch det0 [uint32]"),
+            unsigned int fers_ch1[64];//",    np.zeros(64, dtype=np.uint32),              "fers_ch1[64]/i",   "FERS ch det1 [uint32]"),
+            unsigned int strip0[64];//",      np.zeros(64, dtype=np.uint32),              "strip0[64]/i",     "Strip ID det0 [uint32]"),
+            unsigned int strip1[64];//",      np.zeros(64, dtype=np.uint32),              "strip1[64]/i",     "Strip ID det1 [uint32]"),
             int lg0[64];//",         np.zeros(64, dtype=np.int32),               "lg0[64]/I",        "FERS low-gain (signed) ADC det0 [int32]"),
             int hg0[64];//",         np.zeros(64, dtype=np.int32),               "hg0[64]/I",        "FERS high-gain (signed) ADC det0 [int32]"),
             int lg1[64];//",         np.zeros(64, dtype=np.int32),               "lg1[64]/I",        "FERS low-gain (signed) ADC det1 [int32]"),
             int hg1[64];//",         np.zeros(64, dtype=np.int32),               "hg1[64]/I",        "FERS high-gain (signed) ADC det1 [int32]")
 };
+
+
 
 // puts a nbits (16, 32, 64) integer into an 8 bits vector.
 // bytes are in a machine-independent order
@@ -122,9 +124,9 @@ void FERSpack_CLEAR_event(void* Event, int plane_id, int run_number, int event_n
 	  }
 	  break;
   }
-  std::cout<<"before memcpy"<<std::endl;
+  std::cout<<"before memcpy "<< vec.size() << std::endl;
   memcpy(vec.data(), &our_output, structSize);
-  std::cout<<"after memcpy"<<std::endl;
+  std::cout<<"after memcpy "<< vec.size() << std::endl;
 }
 
 
