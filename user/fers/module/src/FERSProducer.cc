@@ -5,41 +5,41 @@
 //                email: francesco.tortorici@ct.infn.it            //
 //                        notes:                                   //
 /////////////////////////////////////////////////////////////////////
-
+#include "eudaq/Producer.hh"
 #include "FERS_Registers.h"
 #include "FERSlib.h"
-#include "eudaq/Producer.hh"
-#include "stdlib.h"
-#include <chrono>
-#include <fstream>
 #include <iostream>
-#include <random>
+#include <fstream>
 #include <ratio>
+#include <chrono>
 #include <thread>
+#include <random>
+#include "stdlib.h"
+
 #ifndef _WIN32
 #include <sys/file.h>
 #endif
 
 #include "FERS_EUDAQ.h"
-#include "JanusC.h"
 #include "configure.h"
+#include "JanusC.h"
 RunVars_t RunVars;
-int SockConsole; // 0: use stdio console, 1: use socket console
-char ErrorMsg[250];
-// int NumBrd=2; // number of boards
+int SockConsole;	// 0: use stdio console, 1: use socket console
+char ErrorMsg[250];	
+//int NumBrd=2; // number of boards
 
 Config_t WDcfg;
 
 struct shmseg *shmp;
 int shmid;
 
-// #include<sys/ipc.h>
-// #include<sys/shm.h>
-// #include<sys/types.h>
-// #define SHM_KEY 0x1234
-// struct shmseg {
+//#include<sys/ipc.h>
+//#include<sys/shm.h>
+//#include<sys/types.h>
+//#define SHM_KEY 0x1234
+//struct shmseg {
 //	int connectedboards = 0;
-// };
+//};
 
 //----------DOC-MARK-----BEG*DEC-----DOC-MARK----------
 class FERSProducer : public eudaq::Producer {
@@ -288,7 +288,10 @@ void FERSProducer::DoConfigure() {
   std::string temp = conf->Get("EUDAQ_DC", "no data collector");
   strcpy(shmp->collector[brd], temp.c_str());
   shmp->AcquisitionMode[brd] = WDcfg.AcquisitionMode;
-  EUDAQ_WARN("check shared in board " + std::to_string(brd) + ": HVbias = " + std::to_string(shmp->HVbias[brd]) + " collector=" + std::string(shmp->collector[brd]) + " acqmode=" + std::to_string(shmp->AcquisitionMode[brd]));
+  EUDAQ_WARN("check shared in board " + std::to_string(brd) +
+             ": HVbias = " + std::to_string(shmp->HVbias[brd]) +
+             " collector=" + std::string(shmp->collector[brd]) +
+             " acqmode=" + std::to_string(shmp->AcquisitionMode[brd]));
 
   sleep(1);
   HV_Set_OnOff(handle, 0); // set HV on
