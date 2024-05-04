@@ -95,7 +95,7 @@ void FERSpack_CLEAR_event(void* Event, int plane_id, int run_number, int event_n
   // The same technique is used in the other pack routines as well
   SpectEvent_t *tmpEvent = (SpectEvent_t*)Event;
   size_t structSize = sizeof(our_output);
-  std::cout<<"structSize "<<structSize<<std::endl;
+  // std::cout<<"structSize "<<structSize<<std::endl;
   // the following group of vars is not really needed. Used for debug purposes.
   // This is valid also for the other pack routines
   vec.resize(structSize);
@@ -124,9 +124,9 @@ void FERSpack_CLEAR_event(void* Event, int plane_id, int run_number, int event_n
 	  }
 	  break;
   }
-  std::cout<<"before memcpy "<< vec.size() << std::endl;
+  // std::cout<<"before memcpy "<< vec.size() << std::endl;
   memcpy(vec.data(), &our_output, structSize);
-  std::cout<<"after memcpy "<< vec.size() << std::endl;
+  // std::cout<<"after memcpy "<< vec.size() << std::endl;
 }
 
 
