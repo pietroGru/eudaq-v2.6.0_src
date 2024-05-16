@@ -376,7 +376,7 @@ void FERSProducer::RunLoop(){
 	// Convert the duration to a double type
 	double secondsDouble = secondsSinceEpoch.count();
 	std::cout<<secondsDouble<<std::endl;
-	std::this_thread::sleep_until(tp_start_run+std::chrono::milliseconds(100));
+	// std::this_thread::sleep_until(tp_start_run+std::chrono::milliseconds(100));
 	while(!m_exit_of_run){
 
 		// staircase?
