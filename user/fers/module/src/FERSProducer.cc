@@ -1,12 +1,3 @@
-/////////////////////////////////////////////////////////////////////
-//                         2023 May 08                             //
-//                   authors: R. Persiani & F. Tortorici           //
-//                email: rinopersiani@gmail.com                    //
-//                email: francesco.tortorici@ct.infn.it            //
-//                        notes:                                   //
-/////////////////////////////////////////////////////////////////////
-
-
 #include "eudaq/Producer.hh"
 #include "FERS_Registers.h"
 #include "FERSlib.h"
@@ -35,15 +26,6 @@ Config_t WDcfg;
 struct shmseg *shmp;
 int shmid;
 
-//#include<sys/ipc.h>
-//#include<sys/shm.h>
-//#include<sys/types.h>
-//#define SHM_KEY 0x1234
-//struct shmseg {
-//	int connectedboards = 0;
-//};
-
-//----------DOC-MARK-----BEG*DEC-----DOC-MARK----------
 class FERSProducer : public eudaq::Producer {
 	public:
 		FERSProducer(const std::string & name, const std::string & runcontrol);
@@ -79,42 +61,24 @@ class FERSProducer : public eudaq::Producer {
 		int m_HG_Gain, m_LG_Gain, m_hold_delay;
 		std::string connections_string;
 		int m_fers_add_events;
-		//struct shmseg *shmp;
-		//int shmid;
 		int brd; // current board
 
 };
-//----------DOC-MARK-----END*DEC-----DOC-MARK----------
-//----------DOC-MARK-----BEG*CON-----DOC-MARK----------
+
+
 namespace{
 	auto dummy0 = eudaq::Factory<eudaq::Producer>::
 		Register<FERSProducer, const std::string&, const std::string&>(FERSProducer::m_id_factory);
 }
-//----------DOC-MARK-----END*REG-----DOC-MARK----------
+
 
 FERSProducer::FERSProducer(const std::string & name, const std::string & runcontrol)
-	:eudaq::Producer(name, runcontrol), m_file_lock(0), m_exit_of_run(false)
-{  
-}
+	:eudaq::Producer(name, runcontrol), m_file_lock(0), m_exit_of_run(false){
 
-//----------DOC-MARK-----BEG*INI-----DOC-MARK----------
+	}
+
+
 void FERSProducer::DoInitialise(){
-	// see https://www.tutorialspoint.com/inter_process_communication/inter_process_communication_shared_memory.htm
-	//shmid = 0;
-	//shmid = shmget(SHM_KEY, sizeof(struct shmseg), 0600|IPC_CREAT);
-	//if (shmid == -1) {
-	//	std::cerr<<"Shared memory "<<strerror(errno)<<std::endl;
-	//}
-	//EUDAQ_WARN("producer constructor: shmid = "+std::to_string(shmid));
-	// Attach to the segment to get a pointer to it.
-	//shmp = (shmseg*)shmat(shmid, NULL, 0);
-	//if (shmp == (void *) -1) {
-	//	std::cerr<<"Shared memory attach"<<strerror(errno)<<std::endl;
-	//}
-	//
-	//initshm( shmid );
-	//shmp->connectedboards = 0;
-
 	EUDAQ_INFO("Getting init file");
 	auto ini = GetInitConfiguration();
 	std::string lock_path = ini->Get("FERS_DEV_LOCK_PATH", "ferslockfile.txt");
@@ -142,17 +106,13 @@ void FERSProducer::DoInitialise(){
 	strcpy(ip_address, fers_ip_address.c_str());
 	sprintf(connection_path,"eth:%s",ip_address);
 	connections_string = connection_path;
-	//std::cout <<"----3333---- "<<connection_path<<std::endl;
+	
 	int ret = FERS_OpenDevice(connection_path, &handle);
 
 	//std::cout <<"-------- ret= "<<ret<<" handle = "<<handle<<std::endl;
 	if(ret == 0){
 		EUDAQ_INFO("Connected to: " + connections_string);
 		vhandle[WDcfg.NumBrd] = handle;
-		//brd=shmp->connectedboards;
-		//shmp->connectedboards++;
-		//shmp->handle[brd] = handle;
-		//WDcfg.NumBrd++;
 	} else
 		EUDAQ_THROW("unable to connect to fers with ip address: "+ fers_ip_address);
 
@@ -164,29 +124,10 @@ void FERSProducer::DoInitialise(){
 	int allocsize;
 	FERS_InitReadout(handle,ROmode,&allocsize);
 
-	// fill shared struct
-	//std::string fers_prodid = ini->Get("FERS_PRODID","no prod ID");	
-	//strcpy(shmp->IP[brd],       fers_ip_address.c_str());
-	//strcpy(shmp->desc[brd],     std::to_string(FERS_pid(handle)).c_str());
-	//strcpy(shmp->location[brd], fers_id.c_str());
-	//strcpy(shmp->producer[brd], fers_prodid.c_str());
 
-	//std::cout <<" ------- RINO ----------   "<<fers_ip_address
-	//	<<" handle "<<handle
-	//	<<" ROmode "<<ROmode<<"  allocsize "<<allocsize
-	//	<<"Connected to: "<< connection_path 
-	//	<< " "<<fers_id<<std::endl;
 	EUDAQ_INFO("Connected to handle "+std::to_string(handle)
 			+" ip "+fers_ip_address+" "+fers_id
-			//+" connectedboards "+std::to_string(shmp->connectedboards)
 		  );
-	//EUDAQ_WARN("check shared on board "+std::to_string(brd)+": "
-	//		+std::string(shmp->IP[brd])
-	//		+"*"+std::string(shmp->desc[brd])
-	//		+"*"+std::string(shmp->location[brd])
-	//		+"*"+std::string(shmp->producer[brd])
-	//	  );
-
 }
 
 //----------DOC-MARK-----BEG*CONF-----DOC-MARK----------
@@ -273,20 +214,10 @@ void FERSProducer::DoConfigure(){
 	stair_stop  = (uint16_t)(conf->Get("stair_stop",0));
 	stair_step  = (uint16_t)(conf->Get("stair_step",0));
 	stair_dwell_time  = (uint32_t)(conf->Get("stair_dwell_time",0));
-
-
-	// put things in shared structure
-
-	//std::string temp=conf->Get("EUDAQ_DC","no data collector");
-	//strcpy(shmp->collector[brd],temp.c_str());
-	//shmp->AcquisitionMode[brd] = WDcfg.AcquisitionMode;
-
 	sleep(1);
-	HV_Set_OnOff(handle, 0); // set HV on
-
 }
 
-//----------DOC-MARK-----BEG*RUN-----DOC-MARK----------
+
 void FERSProducer::DoStartRun(){
 	m_exit_of_run = false;
 	// here the hardware is told to startup
@@ -294,14 +225,14 @@ void FERSProducer::DoStartRun(){
 	EUDAQ_INFO("StartRun - FERS_ReadoutStatus (0=idle, 1=running) = "+std::to_string(FERS_ReadoutStatus));
 }
 
-//----------DOC-MARK-----BEG*STOP-----DOC-MARK----------
+
 void FERSProducer::DoStopRun(){
 	m_exit_of_run = true;
 	FERS_SendCommand( handle, CMD_ACQ_STOP );
 	EUDAQ_INFO("StopRun - FERS_ReadoutStatus (0=idle, 1=running) = "+std::to_string(FERS_ReadoutStatus));
 }
 
-//----------DOC-MARK-----BEG*RST-----DOC-MARK----------
+
 void FERSProducer::DoReset(){
 	m_exit_of_run = true;
 	if(m_file_lock){
@@ -314,23 +245,11 @@ void FERSProducer::DoReset(){
 	m_ms_busy = std::chrono::milliseconds();
 	//m_exit_of_run = false;
 	FERS_CloseReadout(handle);
-	// HV_Set_OnOff( handle, 0); // set HV off
 	FERS_CloseDevice(handle);	
 	handle = -1;
-	// free shared memory
-	//if (shmdt(shmp) == -1) {
-	//	perror("shmdt");
-	//	exit(1);
-	//}
-	//
-    //// Delete the segment
-    //if (shmctl(shmid, IPC_RMID, NULL) == -1) {
-    //    perror("shmctl");
-    //    exit(1);
-    //}
 }
 
-//----------DOC-MARK-----BEG*TER-----DOC-MARK----------
+
 void FERSProducer::DoTerminate(){
 	m_exit_of_run = true;
 	if(m_file_lock){
@@ -338,26 +257,11 @@ void FERSProducer::DoTerminate(){
 		m_file_lock = 0;
 	}
 	FERS_CloseReadout(handle);
-	// HV_Set_OnOff( handle, 0); // set HV off
 	FERS_CloseDevice(handle);	
 	handle = -1;
-	// free shared memory
-	//if (shmdt(shmp) == -1) {
-	//	perror("shmdt");
-	//	exit(1);
-	//}
-	//
-    //// Delete the segment
-    //if (shmctl(shmid, IPC_RMID, NULL) == -1) {
-    //    perror("shmctl");
-    //    exit(1);
-    //}
-	
-	
-	
 }
 
-//----------DOC-MARK-----BEG*LOOP-----DOC-MARK----------
+
 void FERSProducer::RunLoop(){
 	auto tp_start_run = std::chrono::steady_clock::now();
 	auto start_clock = std::chrono::system_clock::now();
@@ -451,5 +355,3 @@ void FERSProducer::RunLoop(){
 		}
 	}
 }
-//----------DOC-MARK-----END*IMP-----DOC-MARK----------
-
