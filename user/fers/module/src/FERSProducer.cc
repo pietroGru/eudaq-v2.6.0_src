@@ -9,6 +9,7 @@
 #include <random>
 #include <errno.h>
 #include "stdlib.h"
+
 #ifndef _WIN32
 #include <sys/file.h>
 #endif
@@ -22,9 +23,6 @@ char ErrorMsg[250];
 //int NumBrd=2; // number of boards
 
 Config_t WDcfg;
-
-struct shmseg *shmp;
-int shmid;
 
 class FERSProducer : public eudaq::Producer {
 	public:
@@ -74,7 +72,6 @@ namespace{
 
 FERSProducer::FERSProducer(const std::string & name, const std::string & runcontrol)
 	:eudaq::Producer(name, runcontrol), m_file_lock(0), m_exit_of_run(false){
-
 	}
 
 
@@ -134,6 +131,7 @@ void FERSProducer::DoInitialise(){
 void FERSProducer::DoConfigure(){
 	auto conf = GetConfiguration();
 	//conf->Print(std::cout);
+
 	m_plane_id = conf->Get("EX0_PLANE_ID", 0);
 	m_ms_busy = std::chrono::milliseconds(conf->Get("EX0_DURATION_BUSY_MS", 50));
 	m_flag_ts = conf->Get("EX0_ENABLE_TIMESTAMP", 0);
@@ -144,8 +142,9 @@ void FERSProducer::DoConfigure(){
 		m_flag_ts = false;
 		m_flag_tg = true;
 	}
+
 	//std::string fers_conf_dir = conf->Get("FERS_CONF_DIR",".");
-	std::string fers_conf_filename= conf->Get("FERS_CONF_FILE","NOFILE");
+	std::string fers_conf_filename= conf->Get("FERS_CONF_FILE", "NOFILE");
 	//std::string conf_filename = fers_conf_dir + fers_conf_file;
 	m_LG_Gain = conf->Get("FERS_LG_Gain",0);
 	m_HG_Gain = conf->Get("FERS_HG_Gain",0);
@@ -195,6 +194,7 @@ void FERSProducer::DoConfigure(){
 		}
 	}
 	fclose(conf_file);
+	
 	//EUDAQ_WARN( "AcquisitionMode: "+std::to_string(WDcfg.AcquisitionMode));
 
 	ret = ConfigureFERS(handle, 0); // 0 = hard, 1 = soft (no acq restart)
