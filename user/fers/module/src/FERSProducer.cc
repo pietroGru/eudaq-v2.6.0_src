@@ -314,7 +314,7 @@ void FERSProducer::DoReset(){
 	m_ms_busy = std::chrono::milliseconds();
 	//m_exit_of_run = false;
 	FERS_CloseReadout(handle);
-	HV_Set_OnOff( handle, 0); // set HV off
+	// HV_Set_OnOff( handle, 0); // set HV off
 	FERS_CloseDevice(handle);	
 	handle = -1;
 	// free shared memory
@@ -338,7 +338,7 @@ void FERSProducer::DoTerminate(){
 		m_file_lock = 0;
 	}
 	FERS_CloseReadout(handle);
-	HV_Set_OnOff( handle, 0); // set HV off
+	// HV_Set_OnOff( handle, 0); // set HV off
 	FERS_CloseDevice(handle);	
 	handle = -1;
 	// free shared memory
