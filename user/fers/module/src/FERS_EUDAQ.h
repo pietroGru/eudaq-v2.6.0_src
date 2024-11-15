@@ -49,7 +49,7 @@ void FERSpackevent(void* Event, int plane_id, int dataqualifier, std::vector<uin
 // whereas the "unpack" is meant sto be used individually
 
 // basic types of events 
-void FERSpack_CLEAR_event(void* Event, int plane_it, int run_number, int event_number, double time_end, double time_begin, std::vector<uint8_t> &vec);
+void FERSpack_CLEAR_event(void* Event, int plane_it, int run_number, int event_number, int add_events, double time_begin, std::vector<uint8_t> &vec);
 
 void FERSpack_spectevent(void* Event, std::vector<uint8_t> *vec);
 SpectEvent_t FERSunpack_spectevent(std::vector<uint8_t> *vec);

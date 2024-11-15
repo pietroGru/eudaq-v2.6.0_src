@@ -39,9 +39,7 @@ struct FERS_nametypes{
             int lg1[64];//",         np.zeros(64, dtype=np.int32),               "lg1[64]/I",        "FERS low-gain (signed) ADC det1 [int32]"),
             int hg1[64];//",         np.zeros(64, dtype=np.int32),               "hg1[64]/I",        "FERS high-gain (signed) ADC det1 [int32]")
 };
-
-
-
+u_int stripmap[64] = {65, 67, 69, 71, 73, 75, 77, 79, 81, 83, 85, 87, 89, 91, 93, 95, 97, 99, 101, 103, 105, 107, 109, 111, 113, 115, 117, 119, 121, 123, 125, 127, 128, 126, 124, 122, 120, 118, 116, 114, 112, 110, 108, 106, 104, 102, 100, 98, 96, 94, 92, 90, 88, 86, 84, 82, 80, 78, 76, 74, 72, 70, 68, 66};
 // puts a nbits (16, 32, 64) integer into an 8 bits vector.
 // bytes are in a machine-independent order
 void FERSpack(int nbits, uint32_t input, std::vector<uint8_t> *vec)
@@ -85,7 +83,7 @@ uint64_t FERSunpack64(int index, std::vector<uint8_t> vec)
 	return out;
 }
 
-void FERSpack_CLEAR_event(void* Event, int plane_id, int run_number, int event_number, double time_end, double time_begin, std::vector<uint8_t> &vec)
+void FERSpack_CLEAR_event(void* Event, int plane_id, int run_number, int event_number, int add_events, double time_begin, std::vector<uint8_t> &vec)
 {
   int x_pixel = 8;
   int y_pixel = 8;
@@ -93,40 +91,68 @@ void FERSpack_CLEAR_event(void* Event, int plane_id, int run_number, int event_n
   FERS_nametypes our_output;
   // temporary event, used to correctly interpret the Event.
   // The same technique is used in the other pack routines as well
-  SpectEvent_t *tmpEvent = (SpectEvent_t*)Event;
+
+
   size_t structSize = sizeof(our_output);
-  // std::cout<<"structSize "<<structSize<<std::endl;
   // the following group of vars is not really needed. Used for debug purposes.
   // This is valid also for the other pack routines
   vec.resize(structSize);
   our_output.run = run_number;
-  our_output.runTime = time_end-time_begin;
+  our_output.runTime = time_begin;
   our_output.event  = event_number;
-  our_output.timestamp[plane_id] = time_end;
-  our_output.fers_evt[plane_id] = (double)tmpEvent->trigger_id;
-  our_output.fers_trgtime[plane_id] = (double)tmpEvent->tstamp_us;
-  
-  switch(plane_id){
-	  case 0:
-	  for (size_t i = 0; i<nchan; i++){
-		our_output.fers_ch0[i] = i;
-		our_output.strip0[i] = i;
-		our_output.lg0[i] = tmpEvent->energyLG[i];
-		our_output.hg0[i] = tmpEvent->energyHG[i];
-	  }
-	  break;
-	  case 1:
-		for (size_t i = 0; i<nchan; i++){
-		our_output.fers_ch1[i] = i;
-		our_output.strip1[i] = i;
-		our_output.lg1[i] = tmpEvent->energyLG[i];
-		our_output.hg1[i] = tmpEvent->energyHG[i];
-	  }
-	  break;
+  //std::cout<<(double)tmpEvent->tstamp_us<<std::endl;
+  our_output.timestamp[plane_id] = (time_begin);
+  if (event_number>= add_events){
+    SpectEvent_t *tmpEvent = (SpectEvent_t*)Event;
+    our_output.timestamp[plane_id] = (time_begin) + (1e-6 * (double)tmpEvent->tstamp_us);
+    our_output.fers_evt[plane_id] = (double)tmpEvent->trigger_id;
+    our_output.fers_trgtime[plane_id] = (double)tmpEvent->tstamp_us;
+
+    switch(plane_id){
+      case 0:
+      for (size_t i = 0; i<nchan; i++){
+        our_output.fers_ch0[i] = i;
+        our_output.strip0[i] = stripmap[i];
+        our_output.lg0[i] = tmpEvent->energyLG[i]> 9000 ? ((int)tmpEvent->energyLG[i]-65535) : tmpEvent->energyLG[i];
+        our_output.hg0[i] = tmpEvent->energyHG[i]> 9000 ? ((int)tmpEvent->energyHG[i]-65535) : tmpEvent->energyHG[i];
+        our_output.fers_ch1[i] = i;
+        our_output.strip1[i] = stripmap[i];
+        our_output.lg1[i] = 0;
+        our_output.hg1[i] = 0;
+      }
+      break;
+
+      case 1:
+      for (size_t i = 0; i<nchan; i++){
+        our_output.fers_ch1[i] = i;
+        our_output.strip1[i] = stripmap[i];
+        our_output.lg1[i] = tmpEvent->energyLG[i]> 9000 ? ((int)tmpEvent->energyLG[i]-65535) : tmpEvent->energyLG[i];
+        our_output.hg1[i] = tmpEvent->energyHG[i]> 9000 ? ((int)tmpEvent->energyHG[i]-65535) : tmpEvent->energyHG[i];
+        our_output.fers_ch0[i] = i;
+        our_output.strip0[i] = stripmap[i];
+        our_output.lg0[i] = 0;
+        our_output.hg0[i] = 0;
+      }
+      break;
+    }
   }
-  // std::cout<<"before memcpy "<< vec.size() << std::endl;
+  else {
+    our_output.timestamp[plane_id] = (time_begin);
+    our_output.fers_evt[plane_id] = (double)event_number;
+    our_output.fers_trgtime[plane_id] = (double)time_begin;
+
+    for (size_t i = 0; i<nchan; i++){
+      our_output.fers_ch0[i] = i;
+      our_output.strip0[i] = stripmap[i];
+      our_output.lg0[i] = 0;
+      our_output.hg0[i] = 0;
+      our_output.fers_ch1[i] = i;
+      our_output.strip1[i] = stripmap[i];
+      our_output.lg1[i] = 0;
+      our_output.hg1[i] = 0;
+    }
+  }
   memcpy(vec.data(), &our_output, structSize);
-  // std::cout<<"after memcpy "<< vec.size() << std::endl;
 }
 
 
@@ -185,25 +211,18 @@ void FERSpack_spectevent(void* Event, std::vector<uint8_t> *vec)
   FERSpack( 64,             trigger_id, vec);
   FERSpack( 64,             chmask,     vec);
   FERSpack( 64,             qdmask,     vec);
-  std::cout<<"\nFederico HG"<<std::endl;
   for (size_t i = 0; i<nchan; i++){
     energyHG[i] = tmpEvent->energyHG[i];
     FERSpack( 16,energyHG[i], vec);
-	std::cout<<energyHG[i]<<" ";
   }
-  std::cout<<"\nFederico LG"<<std::endl;
   for (size_t i = 0; i<nchan; i++){
     energyLG[i] = tmpEvent->energyLG[i];
     FERSpack( 16,energyLG[i], vec);
-	std::cout<<energyLG[i]<<" ";
   }
-  std::cout<<"\nFederico TS"<<std::endl;
   for (size_t i = 0; i<nchan; i++){
     tstamp[i]   = tmpEvent->tstamp[i]  ;
     FERSpack( 32,tstamp[i]  , vec);
-	std::cout<<tstamp[i]<<" ";
   }
-  std::cout<<"\nFederico ToT"<<std::endl;
   for (size_t i = 0; i<nchan; i++){
     ToT[i]      = tmpEvent->ToT[i]     ;
     FERSpack( 16,ToT[i]     , vec);
