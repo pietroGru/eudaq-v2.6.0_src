@@ -84,6 +84,8 @@ void init_pybind_producer(py::module &m){
   producer_.def("IsConnected", &eudaq::Producer::IsConnected);
   producer_.def("GetConfiguration", &eudaq::Producer::GetConfiguration);
   producer_.def("GetInitConfiguration", &eudaq::Producer::GetInitConfiguration);
+  // I want to access the RunNumber
+  producer_.def("GetRunNumber", &eudaq::Producer::GetRunNumber);
 //  producer_.def("GetConfigKeys",[](const eudaq::Producer &p){return p.GetConfiguration()->Keylist();});
 //  producer_.def("GetConfigItem", &eudaq::Producer::GetConfigItem,
 //		"Get an item from Producer's config section", py::arg("key"));
