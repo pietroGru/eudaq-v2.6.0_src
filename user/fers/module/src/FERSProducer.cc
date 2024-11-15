@@ -198,18 +198,7 @@ void FERSProducer::DoConfigure(){
 	//EUDAQ_WARN( "AcquisitionMode: "+std::to_string(WDcfg.AcquisitionMode));
 
 	ret = ConfigureFERS(handle, 0); // 0 = hard, 1 = soft (no acq restart)
-	if (ret != 0)
-	{
-		EUDAQ_THROW("ConfigureFERS failed");
-	}
-
-	stair_do = (bool)(conf->Get("stair_do",0));
-	stair_shapingt = (uint16_t)(conf->Get("stair_shapingt",0));
-	stair_start = (uint16_t)(conf->Get("stair_start",0));
-	stair_stop  = (uint16_t)(conf->Get("stair_stop",0));
-	stair_step  = (uint16_t)(conf->Get("stair_step",0));
-	stair_dwell_time  = (uint32_t)(conf->Get("stair_dwell_time",0));
-	// sleep(1);
+	if (ret != 0) EUDAQ_THROW("ConfigureFERS failed");
 }
 
 
