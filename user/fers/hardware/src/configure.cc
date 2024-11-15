@@ -248,15 +248,18 @@ int ConfigureFERS(int handle, int mode)
 
 	if (WDcfg.CitirocCfgMode == CITIROC_CFG_FROM_FILE) {
 		FERS_WriteRegister(handle, a_scbs_ctrl, 0x100);  // enable manual loading of SCbs (chip 0)
-		ReadSCbsFromFile("weerocGUI.txt", SCbs[0]);
-		WriteCStoFileFormatted("weerocGUI_formatted.txt", SCbs[0]);
+		// ReadSCbsFromFile("weerocGUI.txt", SCbs[0]);
+		ReadSCbsFromFile("CitirocCfg_bitstream_0.txt", SCbs[0]);
+		WriteCStoFileFormatted("weerocGUI_0_formatted.txt", SCbs[0]);
 		WriteSCbsToChip(handle, 0, SCbs[0]);
 		ReadSCbsFromChip(handle, 0, SCbs[0]);
 		//WriteCStoFile("CitirocCfg_bitstream_0.txt", SCbs[0]);
 		WriteCStoFileFormatted("CitirocCfg_0.txt", SCbs[0]);
 
 		FERS_WriteRegister(handle, a_scbs_ctrl, 0x300);  // enable manual loading of SCbs (chip 1)
-		ReadSCbsFromFile("weerocGUI.txt", SCbs[1]);
+		// ReadSCbsFromFile("weerocGUI.txt", SCbs[1]);
+		ReadSCbsFromFile("CitirocCfg_bitstream_1.txt", SCbs[1]);
+		WriteCStoFileFormatted("weerocGUI_1_formatted.txt", SCbs[1]);
 		WriteSCbsToChip(handle, 1, SCbs[1]);
 		ReadSCbsFromChip(handle, 1, SCbs[1]);
 		//WriteCStoFile("CitirocCfg_bitstream_1.txt", SCbs[1]);
@@ -265,13 +268,13 @@ int ConfigureFERS(int handle, int mode)
 		FERS_WriteRegister(handle, a_scbs_ctrl, 0x000);  // set citiroc index = 0
 		FERS_SendCommand(handle, CMD_CFG_ASIC);
 		ReadSCbsFromChip(handle, 0, SCbs[0]);
-		//WriteCStoFile("CitirocCfg_bitstream_0.txt", SCbs[0]);
+		WriteCStoFile("CitirocCfg_bitstream_0.txt", SCbs[0]);
 		WriteCStoFileFormatted("CitirocCfg_0.txt", SCbs[0]);
 
 		FERS_WriteRegister(handle, a_scbs_ctrl, 0x200);  // set citiroc index = 1
 		FERS_SendCommand(handle, CMD_CFG_ASIC);  
 		ReadSCbsFromChip(handle, 1, SCbs[1]);
-		//WriteCStoFile("CitirocCfg_bitstream_1.txt", SCbs[1]);
+		WriteCStoFile("CitirocCfg_bitstream_1.txt", SCbs[1]);
 		WriteCStoFileFormatted("CitirocCfg_1.txt", SCbs[1]);
 	}
 	if (ret) goto abortcfg;
