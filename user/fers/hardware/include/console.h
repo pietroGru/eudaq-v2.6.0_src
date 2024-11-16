@@ -66,20 +66,15 @@ typedef struct {
 
 
 #ifdef _WIN32
-
     #pragma comment(lib, "ws2_32.lib") // Winsock Library
-
     #include <conio.h>
     #include <process.h>
-    #include <stdint.h>
-    #include <string.h>   
-
+	#include <stdint.h>
+	#include <string.h>   
     #define myscanf     scanf
-    #define getch       Con_getch
-    #define kbhit       Con_kbhit
-
-#else  // linux
-
+	#define getch       Con_getch
+	#define kbhit       Con_kbhit
+#else  // Windows
     #include <sys/time.h> /* struct timeval, select() */
     #include <termios.h>  /* tcgetattr(), tcsetattr() */
     #include <stdlib.h>   /* atexit(), exit() */
@@ -87,21 +82,13 @@ typedef struct {
     #include <string.h>   /* memcpy() */
     #include <stdint.h>
     #include <sys/stat.h>
-
     #define myscanf     _scanf  // before calling the scanf function it is necessart to change termios settings
 	#define getch       Con_getch
 	#define kbhit       Con_kbhit
 
-//int getch(void);
-//int kbhit();
-int _scanf(char *fmt, ...);
-
-
-
-
-
-
-
+    //int getch(void);
+    //int kbhit();
+    int _scanf(char *fmt, ...);
 #endif
 
 

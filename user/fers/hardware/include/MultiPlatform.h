@@ -56,32 +56,29 @@
 	#include <unistd.h>
 	#include <errno.h>
 
-	#include <endian.h> // linux
-	//#include <machine/endian.h> // macos
+	#include <endian.h>
 #endif
 
 
 // Socket definition
+
 #ifdef _WIN32
-typedef SOCKET						f_socket_t;			//!< Return type of socket(). On Windows socket() returns SOCKET.
-typedef int							ssize_t;			//!< Used on Linux as return type of send() an recv(). On Windows they return int.
-#define f_socket_errno				WSAGetLastError()	//!< On Windows socket-related functions set an error retrievable from WSAGetLastError()
-#define f_socket_h_errno			f_socket_errno		//!< On Windows network database operations like gethostbyname() set the error into WSAGetLastError() too.
-#define f_socket_invalid			INVALID_SOCKET		//!< On Windows functions like accept() return INVALID_SOCKET in case of error. On Linux they return -1.
-#define f_socket_error				SOCKET_ERROR		//!< On Windows functions like send() return SOCKET_ERROR in case of error. On Linux they return -1.
-#define f_socket_close(f_sock)		closesocket(f_sock)	//!< On Windows closesocket. On linux close>
-#define f_socket_cleanup()			WSACleanup()		//!< On Windows WSACleanup. On linux "do nothing">
-
+	typedef SOCKET						f_socket_t;			//!< Return type of socket(). On Windows socket() returns SOCKET.
+	typedef int							ssize_t;			//!< Used on Linux as return type of send() an recv(). On Windows they return int.
+	#define f_socket_errno				WSAGetLastError()	//!< On Windows socket-related functions set an error retrievable from WSAGetLastError()
+	#define f_socket_h_errno			f_socket_errno		//!< On Windows network database operations like gethostbyname() set the error into WSAGetLastError() too.
+	#define f_socket_invalid			INVALID_SOCKET		//!< On Windows functions like accept() return INVALID_SOCKET in case of error. On Linux they return -1.
+	#define f_socket_error				SOCKET_ERROR		//!< On Windows functions like send() return SOCKET_ERROR in case of error. On Linux they return -1.
+	#define f_socket_close(f_sock)		closesocket(f_sock)	//!< On Windows closesocket. On linux close>
+	#define f_socket_cleanup()			WSACleanup()		//!< On Windows WSACleanup. On linux "do nothing">
 #else
-typedef int							f_socket_t;			//!< Return type of socket(). On Linux socket() returns int.
-#define f_socket_errno				errno				//!< On Linux socket-related functions set the error into errno variable.
-#define f_socket_h_errno			h_errno				//!< On Linux network database operations like gethostbyname() set the error into h_errno variable.
-#define f_socket_invalid			(-1)				//!< On Windows functions like accept() return INVALID_SOCKET in case of error. On Linux they return -1.
-#define f_socket_error				(-1)				//!< On Windows functions like send() return SOCKET_ERROR in case of error. On Linux they return -1.
-#define f_socket_close(f_sock)		close(f_sock)		//!< On Windows closesocket. On linux close>
-#define f_socket_cleanup()								//!< On Windows WSACleanup. On linux "do nothing">
-
-
+	typedef int							f_socket_t;			//!< Return type of socket(). On Linux socket() returns int.
+	#define f_socket_errno				errno				//!< On Linux socket-related functions set the error into errno variable.
+	#define f_socket_h_errno			h_errno				//!< On Linux network database operations like gethostbyname() set the error into h_errno variable.
+	#define f_socket_invalid			(-1)				//!< On Windows functions like accept() return INVALID_SOCKET in case of error. On Linux they return -1.
+	#define f_socket_error				(-1)				//!< On Windows functions like send() return SOCKET_ERROR in case of error. On Linux they return -1.
+	#define f_socket_close(f_sock)		close(f_sock)		//!< On Windows closesocket. On linux close>
+	#define f_socket_cleanup()								//!< On Windows WSACleanup. On linux "do nothing">
 #endif // linux
 
 // Thread??
@@ -93,14 +90,10 @@ typedef int							f_socket_t;			//!< Return type of socket(). On Linux socket() 
 	#define lock(m)                 (WaitForSingleObject(m, INFINITE) == WAIT_FAILED) ? GetLastError() : 0
 	#define unlock(m)               (ReleaseMutex(m) != 0) ? 0 : GetLastError()
 	#define trylock(m)           	WaitForSingleObject(m, 10)
-
 	#define thread_create(f, p, id)	_beginthreadex(NULL, 0, (unsigned int(__stdcall *)(void*))f, p, 0, (unsigned int *)id);
 	#define thread_join(id, r)		WaitForSingleObject((HANDLE *)id, INFINITE);
-
 	uint64_t get_time();
-
 #else
-
 	// LINUX VERSION NOT TESTED!!!
 	typedef pthread_mutex_t			mutex_t;
 	typedef pthread_t				f_thread_t;
@@ -110,14 +103,10 @@ typedef int							f_socket_t;			//!< Return type of socket(). On Linux socket() 
 	#define lock(m)					pthread_mutex_lock(&m)
 	#define unlock(m)				pthread_mutex_unlock(&m)
 	#define trylock(m)				pthread_mutex_trylock(&m) // pthread_mutex_timedlock(&m, t)
-
 	#define thread_create(f, p, id)	pthread_create(id, NULL, f, p)
 	#define thread_join(id, r)		pthread_join(id, r)
-
 	#define Sleep(ms)				usleep((ms)*1000) // DNIN : usleep is already in ms?? seems no
-
 	uint64_t get_time();
-
 #endif
 
 // SOCKET, TAKEN FROM CAENUtility
