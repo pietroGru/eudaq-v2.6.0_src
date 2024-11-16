@@ -25,6 +25,8 @@
 #include "FERSlib.h"
 #include "FERS_Registers.h"
 
+#include "console.h"
+
 #define LLBUFF_SIZE			(16*1024)
 #define LLBUFF_CNC_SIZE		(64*1024)
 #define EVBUFF_SIZE			(16*1024)
@@ -412,6 +414,7 @@ int FERS_DecodeEvent(int handle, uint32_t *EvBuff, int nb, int *DataQualifier, d
 	// decode event data structure
 	size = EvBuff[0] & 0xFFFF;
 	*DataQualifier = (EvBuff[0] >> 24) & 0xFF;
+	if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("[INFO][BRD %02d] Init Readout. DataQualifier %d\n", FERS_INDEX(handle), *DataQualifier);
 
 	if (*DataQualifier == DTQ_TEST) {  // test Mode 
 		*tstamp_us = (double)(((uint64_t)EvBuff[4] << 32) | (uint64_t)EvBuff[3]) * CLK_PERIOD / 1000.0;
@@ -782,6 +785,7 @@ int FERS_GetEvent(int *handle, int *bindex, int *DataQualifier, double *tstamp_u
 	// SORTED
 	// ---------------------------------------------------------------------
 	if (ReadoutMode != ROMODE_DISABLE_SORTING) {
+		*DataQualifier = -1;
 		int qsel, qi;
 		static int nodata_cnt[FERSLIB_MAX_NBRD] = { 0 };
 		static uint64_t nodata_time[FERSLIB_MAX_NBRD] = { 0 };
@@ -854,9 +858,10 @@ int FERS_GetEvent(int *handle, int *bindex, int *DataQualifier, double *tstamp_u
 
 
 	// ---------------------------------------------------------------------
-	// UNSORTED
+	// UNSORTED (this is the piece of code which is executed)
 	// ---------------------------------------------------------------------
 	} else {
+		*DataQualifier = -2;
 		static int init = 1;
 		static int NumCnc = 0;				// Total number of concentrators
 		static int NumDir = 0;				// Total number of boards with direct connection (no concentrator)
@@ -891,6 +896,7 @@ int FERS_GetEvent(int *handle, int *bindex, int *DataQualifier, double *tstamp_u
 				}
 			}
 		} else {
+			*DataQualifier = -3;
 			for(i=0; (i < FERSLIB_MAX_NBRD) && (handle[i] >= 0); i++) {
 				h = FERS_INDEX(handle[i]);
 				if (EvBuff_nb[h] == 0) {
@@ -904,6 +910,7 @@ int FERS_GetEvent(int *handle, int *bindex, int *DataQualifier, double *tstamp_u
 				}
 			}
 			if (h_found >= 0) {
+				*DataQualifier = -4;
 				FERS_DecodeEvent(handle[h_found], EvBuff[h_found], EvBuff_nb[h_found], DataQualifier, tstamp_us, Event);
 				*nb = EvBuff_nb[h_found];
 				*bindex = h_found;
