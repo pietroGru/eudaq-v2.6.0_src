@@ -61,6 +61,8 @@ class FERSProducer : public eudaq::Producer {
 		int m_fers_add_events;
 		int brd; // current board
 
+		// Timestamp when the FERS run start returns
+		std::chrono::time_point<std::chrono::system_clock> runStartTime;
 };
 
 
@@ -71,7 +73,11 @@ namespace{
 
 
 FERSProducer::FERSProducer(const std::string & name, const std::string & runcontrol)
-	:eudaq::Producer(name, runcontrol), m_file_lock(0), m_exit_of_run(false){
+	:eudaq::Producer(name, runcontrol),
+	m_file_lock(0),
+	m_exit_of_run(false),
+	runStartTime(std::chrono::system_clock::now())
+	{
 	}
 
 
@@ -206,6 +212,7 @@ void FERSProducer::DoStartRun(){
 	m_exit_of_run = false;
 	// here the hardware is told to startup
 	FERS_SendCommand( handle, CMD_ACQ_START );
+	runStartTime = std::chrono::system_clock::now();
 	EUDAQ_INFO("StartRun - FERS_ReadoutStatus (0=idle, 1=running) = "+std::to_string(FERS_ReadoutStatus));
 }
 
@@ -260,82 +267,71 @@ void FERSProducer::RunLoop(){
 
 	// Convert the duration to seconds or any other desired unit (e.g., milliseconds)
 	auto secondsSinceEpoch = std::chrono::duration_cast<std::chrono::duration<double>>(durationSinceEpoch);
-
 	// Convert the duration to a double type
 	double secondsDouble = secondsSinceEpoch.count();
-	std::cout<<secondsDouble<<std::endl;
-	// std::this_thread::sleep_until(tp_start_run+std::chrono::milliseconds(100));
+
 	while(!m_exit_of_run){
-
-		// staircase?
-		static bool stairdone = false;
-
-		int nchan = x_pixel*y_pixel;
-		int DataQualifier = -1;
+		int bindex, DataQualifier, nb;
+		DataQualifier = -5;
+		double tstamp_us;
 		void *Event;
+		int status = FERS_GetEvent(vhandle, &bindex, &DataQualifier, &tstamp_us, &Event, &nb);
 
-		//auto ev = eudaq::Event::MakeUnique("FERSProducer_"+std::to_string(m_plane_id));
-		auto ev = eudaq::Event::MakeUnique("fers"); 
-
-		
-		//auto tp_end_of_polling = tp_trigger + std::chrono::milliseconds(10);
-
-		double tstamp_us = -1;
-		int nb = -1;
-		int bindex = -1;
-		int status = -1;
-
-		// real data
-		// 
-		// while(!FERS_GetEvent(vhandle, &bindex, &DataQualifier, &tstamp_us, &Event, &nb) && !m_exit_of_run){
-		// 	auto tp_end_of_polling = std::chrono::steady_clock::now() + std::chrono::milliseconds(10);
-		// 	std::this_thread::sleep_until(tp_end_of_polling);
-		// }
-
-		status= FERS_GetEvent(vhandle, &bindex, &DataQualifier, &tstamp_us, &Event, &nb);
-		//if (status > 0)std::cout<<"--status of FERS_GetEvent (0=No Data, 1=Good Data 2=Not Running, <0 = error) = "<< std::to_string(status)<<std::endl;
-		//
-		auto tp_trigger = std::chrono::steady_clock::now();
-		auto tp_end_of_busy = tp_trigger + m_ms_busy;
-		// event creation
-		if ( DataQualifier >0 || (trigger_n < m_fers_add_events) ) {
-
-			std::chrono::nanoseconds du_ts_beg_ns(tp_trigger - tp_start_run);
-			std::chrono::nanoseconds du_ts_end_ns(tp_end_of_busy - tp_start_run);
-
-			ev->SetTimestamp(du_ts_beg_ns.count(), du_ts_end_ns.count());
-			ev->SetTriggerN(trigger_n);
-
-			ev->SetTag("Detector_ID", std::to_string(m_plane_id));
-			if (trigger_n == 0) {
+		if(status==1){
+			auto absFERSdownloadTime = std::chrono::system_clock::now().time_since_epoch();
+			auto absFERSdownloadTime_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(absFERSdownloadTime).count();
+			//if (status > 0)std::cout<<"--status of FERS_GetEvent (0=No Data, 1=Good Data 2=Not Running, <0 = error) = "<< std::to_string(status)<<std::endl;
+			//
+			auto tp_trigger = std::chrono::steady_clock::now();
+			auto tp_end_of_busy = tp_trigger + m_ms_busy;
+			// event creation
+			if ( DataQualifier == DTQ_SPECT ) {
+			// if ( DataQualifier >0 || (trigger_n < m_fers_add_events) ) {
+				//std::cout<<"--FERS_ReadoutStatus (0=idle, 1=running) = " << FERS_ReadoutStatus <<std::endl;
+				//std::cout<<"--status of FERS_GetEvent (0=No Data, 1=Good Data 2=Not Running, <0 = error) = "<< std::to_string(status)<<std::endl;
+				//std::cout<<"  --bindex = "<< std::to_string(bindex) <<" tstamp_us = "<< std::to_string(tstamp_us) <<std::endl;
+				//std::cout<<"  --DataQualifier = "<< std::to_string(DataQualifier) +" nb = "<< std::to_string(nb) <<std::endl;
+								
+				std::vector<uint8_t> data;
+				FERSpack_CLEAR_event(Event, m_plane_id, GetRunNumber(), trigger_n, m_fers_add_events, secondsDouble, data);
+				
+				uint32_t block_id = m_plane_id;
+				
+				// Create the event
+				auto ev = eudaq::Event::MakeUnique("fers"); 
+				ev->SetTag("Detector_ID", std::to_string(m_plane_id));
 				ev->SetTag("LGgain", std::to_string(m_LG_Gain));
 				ev->SetTag("HGgain", std::to_string(m_HG_Gain));
 				ev->SetTag("HoldDelay", std::to_string(m_hold_delay));
 				ev->SetTag("fers_final_filename", fers_final_filename);
-			}
-			//std::cout<<"--FERS_ReadoutStatus (0=idle, 1=running) = " << FERS_ReadoutStatus <<std::endl;
-			//std::cout<<"--status of FERS_GetEvent (0=No Data, 1=Good Data 2=Not Running, <0 = error) = "<< std::to_string(status)<<std::endl;
-			//std::cout<<"  --bindex = "<< std::to_string(bindex) <<" tstamp_us = "<< std::to_string(tstamp_us) <<std::endl;
-			//std::cout<<"  --DataQualifier = "<< std::to_string(DataQualifier) +" nb = "<< std::to_string(nb) <<std::endl;
-			
-			std::vector<uint8_t> data;
-			if (DataQualifier ==17) DataQualifier=1;
-			//make_header(handle, x_pixel, y_pixel, DataQualifier, &data);
-			//make_header(brd, DataQualifier, &data);
-			double run_time =  ev->GetTimestampEnd() -  ev->GetTimestampBegin();
-			FERSpack_CLEAR_event(Event, m_plane_id, GetRunNumber(), trigger_n, m_fers_add_events, secondsDouble, data);
-			uint32_t block_id = m_plane_id;
-			ev->SetRunN(GetRunNumber());
-			ev->SetEventN(trigger_n);
 
-			ev->AddBlock(0, data);
-			SendEvent(std::move(ev));
-			
-			// std::this_thread::sleep_until(tp_end_of_busy);
-			if (trigger_n < m_fers_add_events) std::this_thread::sleep_until(tp_end_of_busy);
-			trigger_n++;
-		}else{
-			//std::this_thread::sleep_until(tp_end_of_polling);
+				ev->SetRunN(GetRunNumber());
+				ev->SetEventN(trigger_n);
+				ev->SetTriggerN(trigger_n);
+				std::chrono::microseconds timeDifference(static_cast<int64_t>(tstamp_us));
+				auto absFERShwTime = runStartTime + timeDifference;
+				uint64_t absFERShwTime_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(absFERShwTime.time_since_epoch()).count();
+
+				ev->SetTimestamp(absFERShwTime_ns, absFERSdownloadTime_ns);
+				
+				ev->AddBlock(0, data);
+				
+				SendEvent(std::move(ev));
+				
+				// std::this_thread::sleep_until(tp_end_of_busy);
+				if (trigger_n < m_fers_add_events) std::this_thread::sleep_until(tp_end_of_busy);
+				trigger_n++;
+				EUDAQ_INFO("DataQualifier is SPECT: 		"+std::to_string(DataQualifier));
+			}else{
+				EUDAQ_WARN("DataQualifier is not SPECT: "+std::to_string(DataQualifier));
+			}
+		}else if(status<0){
+			// Error, stop the acquisition
+			EUDAQ_THROW("Error in FERS_GetEvent: "+std::to_string(status));
+			m_exit_of_run = true;
 		}
+
+		// This is to reduce the polling rate in order not to reduce CPU load and not overload the bandwidth 
+		std::this_thread::sleep_for(std::chrono::milliseconds(5));
 	}
 }
