@@ -6,8 +6,6 @@
 /////////////////////////////////////////////////////////////////////
 
 #include "eudaq/Producer.hh"
-#include "FERS_Registers.h"
-#include "FERSlib.h"
 #include <iostream>
 #include <chrono>
 #include <thread>
@@ -16,10 +14,12 @@
 #include <stdio.h>
 #include "eudaq/Monitor.hh"
 
-#include "configure.h"
 
 #include "DataSender.hh"
+
+#include "FERSlib.h"
 #include "FERS_EUDAQ.h"
+#include "configure.h"
 
 std::fstream runfile[MAX_NBRD]; // pointers to ascii output data files
 

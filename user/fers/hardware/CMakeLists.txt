@@ -1,50 +1,35 @@
-include_directories(include)
+# Set the source and include directories
+set(HARDWARE_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
+set(HARDWARE_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-# linux
-include_directories(/usr/include/libusb-1.0)
+# Collect all source and header files
+file(GLOB HARDWARE_SOURCES "${HARDWARE_SRC_DIR}/*.cc" "${HARDWARE_SRC_DIR}/*.c")
+file(GLOB HARDWARE_HEADERS "${HARDWARE_INCLUDE_DIR}/*.h")
 
-# macos
-#include_directories(/usr/local/include/libusb-1.0)
+# Define the library for the hardware module
+add_library(${USER_HARDWARE_LIBRARY} STATIC ${HARDWARE_SOURCES} ${HARDWARE_HEADERS})
 
-# common
-aux_source_directory(src USER_HARDWARE_SRC)
+# Add include directories
+target_include_directories(${USER_HARDWARE_LIBRARY} PRIVATE ${HARDWARE_INCLUDE_DIR})
+target_include_directories(${USER_HARDWARE_LIBRARY} SYSTEM PRIVATE /usr/include/libusb-1.0)
 
-# linux
-link_directories(/usr/lib/x86_64-linux-gnu)
+# Set the FERS version with a CACHE entry to allow selection in ccmake
+set(USER_FERS_VERSION "5202" CACHE STRING "Select the FERS version (5202 or 5215)")
 
+# Provide options for the user to choose from in ccmake
+set_property(CACHE USER_FERS_VERSION PROPERTY STRINGS "5202;5215")
 
-if(USER_FERS_BUILD)
-  add_library(libusb SHARED IMPORTED)
-  add_library(${USER_HARDWARE_LIBRARY} STATIC ${USER_HARDWARE_SRC})
-  
-  # linux
-  set_target_properties( libusb PROPERTIES IMPORTED_LOCATION /usr/lib64/libusb-1.0.so)
-  
-  # macos
-  #set_target_properties( libusb PROPERTIES IMPORTED_LOCATION /usr//local/lib/libusb-1.0.dylib)
-  
-  # common
-  target_link_libraries(${USER_HARDWARE_LIBRARY} ${EUDAQ_CORE_LIBRARY} ${USER_HARDWARE_DEP_LIB} libusb)
-  #list(APPEND INSTALL_TARGETS ${USER_HARDWARE_LIBRARY})
+# Set the preprocessor definition based on the selected version
+if(USER_FERS_VERSION STREQUAL "5202")
+    set(FERS_VERSION_DEFINE "FERS_5202")
+elseif(USER_FERS_VERSION STREQUAL "5215")
+    set(FERS_VERSION_DEFINE "FERS_5215")
+else()
+    message(FATAL_ERROR "Invalid version selected for FERS. Please choose either 5202 or 5215.")
 endif()
 
+# Apply the preprocessor definition
+target_compile_definitions(${USER_HARDWARE_LIBRARY} PRIVATE ${FERS_VERSION_DEFINE})
 
-if(USER_FERS_BUILD)
-  list(APPEND USER_HARDWARE_SRC
-    src/Statistics.cc
-    src/FERSutils.cc
-    src/FERS_LLeth.cc
-    src/FERS_LLtdl.cc
-    src/FERS_LLusb.cpp
-    src/FERS_readout.cc
-    src/console.cc
-    src/MultiPlatform.cc
-    src/FERSlib.cc
-    src/paramparser.cc
-    src/configure.cc)
-endif()
-
-install(TARGETS ${USER_HARDWARE_LIBRARY}
-  RUNTIME DESTINATION bin
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib)
+# Add necessary libraries for linking
+target_link_libraries(${USER_HARDWARE_LIBRARY} PRIVATE pthread rt usb-1.0)

@@ -1,22 +1,21 @@
 #include "eudaq/Producer.hh"
-#include "FERS_Registers.h"
-#include "FERSlib.h"
 #include <iostream>
 #include <fstream>
 #include <ratio>
 #include <chrono>
 #include <thread>
-#include <random>
 #include <errno.h>
 #include "stdlib.h"
 
 #ifndef _WIN32
-#include <sys/file.h>
+	#include <sys/file.h>
 #endif
 
 #include "FERS_EUDAQ.h"
 #include "configure.h"
+#include "FERSlib.h"
 #include "JanusC.h"
+
 RunVars_t RunVars;
 int SockConsole;	// 0: use stdio console, 1: use socket console
 char ErrorMsg[250];	
@@ -259,8 +258,6 @@ void FERSProducer::RunLoop(){
 	uint32_t trigger_n = 0;
 	uint8_t x_pixel = 8;
 	uint8_t y_pixel = 8;
-	std::random_device rd;
-	std::mt19937 gen(rd());
 	std::uniform_int_distribution<uint32_t> position(0, x_pixel*y_pixel-1);
 	std::uniform_int_distribution<uint32_t> signal(0, 63);
 	auto durationSinceEpoch = start_clock.time_since_epoch();
