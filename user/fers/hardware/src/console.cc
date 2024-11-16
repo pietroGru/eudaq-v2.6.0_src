@@ -26,60 +26,54 @@ f_socket_t ConSocket = 0;	// 0: stdio console; 1: console I/O through socket
 FILE *ConLog = NULL;
 SocketBuffer_t Sbuff; 
 
+#ifdef _WIN32
+	#include <windows.h>
+	#include <tchar.h>
+	#include <strsafe.h>
+#else
+	#define CLEARSCR "clear"
 
-#ifdef _WIN32  // Windows
+	/*****************************************************************************/
+	// kind of old, it is left since scanf is redefined as _scanf
+	static struct termios g_old_kbd_mode;
 
-#include <windows.h>
-#include <tchar.h>
-#include <strsafe.h>
+	static void cooked(void)
+	{
+		tcsetattr(STDIN_FILENO, TCSANOW, &g_old_kbd_mode);
+	}
 
-#else // linux
+	static void raw(void)
+	{
+		static char init=0;
+		struct termios new_kbd_mode;
 
-#define CLEARSCR "clear"
+		if (init) return;
+		/* put keyboard (stdin, actually) in raw, unbuffered mode */
+		tcgetattr(0, &g_old_kbd_mode);
+		memcpy(&new_kbd_mode, &g_old_kbd_mode, sizeof(struct termios));
+		new_kbd_mode.c_lflag &= ~(ICANON | ECHO);
+		new_kbd_mode.c_cc[VTIME] = 0;
+		new_kbd_mode.c_cc[VMIN] = 1;
+		tcsetattr(STDIN_FILENO, TCSANOW, &new_kbd_mode);
+		/* when we exit, go back to normal, "cooked" mode */
+		atexit(cooked);
+		init = 1;
+	}
 
-
-/*****************************************************************************/
-// kind of old, it is left since scanf is redefined as _scanf
-static struct termios g_old_kbd_mode;
-
-static void cooked(void)
-{
-	tcsetattr(0, TCSANOW, &g_old_kbd_mode);
-}
-
-static void raw(void)
-{
-	static char init=0;
-	struct termios new_kbd_mode;
-
-	if (init) return;
-	/* put keyboard (stdin, actually) in raw, unbuffered mode */
-	tcgetattr(0, &g_old_kbd_mode);
-	memcpy(&new_kbd_mode, &g_old_kbd_mode, sizeof(struct termios));
-	new_kbd_mode.c_lflag &= ~(ICANON | ECHO);
-	new_kbd_mode.c_cc[VTIME] = 0;
-	new_kbd_mode.c_cc[VMIN] = 1;
-	tcsetattr(0, TCSANOW, &new_kbd_mode);
-	/* when we exit, go back to normal, "cooked" mode */
-	atexit(cooked);
-	init = 1;
-}
-
-// --------------------------------------------------------------------------------------------------------- 
-//  SCANF (change termios settings, then execute scanf) 
-// --------------------------------------------------------------------------------------------------------- 
-int _scanf(char *fmt, ...)	// // before calling the scanf function it is necessart to change termios settings
-{
-	int ret;
-	cooked();
-	va_list args;
-	va_start(args, fmt);
-	ret = vscanf(fmt, args);
-	va_end(args);
-	raw();
-	return ret;
-}
-
+	// --------------------------------------------------------------------------------------------------------- 
+	//  SCANF (change termios settings, then execute scanf) 
+	// --------------------------------------------------------------------------------------------------------- 
+	int _scanf(char *fmt, ...)	// // before calling the scanf function it is necessart to change termios settings
+	{
+		int ret;
+		//cooked();
+		va_list args;
+		va_start(args, fmt);
+		ret = vscanf(fmt, args);
+		va_end(args);
+		//raw();
+		return ret;
+	}
 #endif
 
 // --------------------------------------------------------------------------------------------------------
@@ -97,9 +91,9 @@ int _scanf(char *fmt, ...)	// // before calling the scanf function it is necessa
 void* ListenThread(void *arg) {
 	int size;
 	char *rxbuff;
+	rxbuff = (char*)malloc(SOCKET_BUFFER_SIZE);
 
-	rxbuff = (char *)malloc(SOCKET_BUFFER_SIZE);
-    // Receive until the peer closes the connection
+    // Receive until the peer closes the connection or an error occur in the socket
     do {
         size = recv(ConSocket, rxbuff, SOCKET_BUFFER_SIZE, 0);
         if (size > 0) {
@@ -124,6 +118,11 @@ void* ListenThread(void *arg) {
 			Con_printf("L", "ERROR: recv failed with error: %d\n", f_socket_errno); // WSAGetLastError());
 		}
     } while (size > 0);
+	lock(Sbuff.mutex);
+	memcpy(Sbuff.sharedData + Sbuff.wpnt, "q1", 2);
+	Sbuff.wpnt += 2;
+	unlock(Sbuff.mutex);
+
 	free(rxbuff);
 	return NULL;
 }
@@ -237,11 +236,11 @@ int GetCharFromGUI() {	// Fine
 	return c;
 }
 
-int GetStringFromGUI(char* str, int* size, int max_size) {		// I would say it is fine
+int GetStringFromGUI(char* str, int* size, int max_size) {		
 	int i = 0;
 
 	*size = 0;
-	lock(Sbuff.mutex);	// lock->multiplatform to test    Sbuff? I think so
+	lock(Sbuff.mutex);	
 	while ((Sbuff.sharedData[Sbuff.rpnt] != '\n') && (Sbuff.rpnt < Sbuff.wpnt) && (i < max_size)) {
 		str[i++] = Sbuff.sharedData[Sbuff.rpnt++];
 	}
@@ -469,6 +468,7 @@ int SendDataToGUI(char* data, int size)
 	//	c_send(const c_socket_t * sckt, const void* buffer, size_t totSize)
 	if (send(ConSocket, data, size, 0) < 0) {	// send IS multiplatform!!!
 		Con_printf("L", "ERROR: send data to socket failed\n");
+
 #ifdef _WIN32
 		WSACleanup();	// only on windows?
 #endif
@@ -484,8 +484,10 @@ int SendDataToGUI(char* data, int size)
 // --------------------------------------------------------------------------------------------------------- 
 int Con_printf(char *dest, char *fmt, ...) 
 {
+	const int msize = 2048;
 	char msg[1000];
 	uint16_t size;
+	int8_t ret = 0;
 	//static int cnt=0;
 	va_list args;
 
@@ -493,12 +495,17 @@ int Con_printf(char *dest, char *fmt, ...)
 	vsprintf(msg, fmt, args);
 	va_end(args);
 
-	if (!ConSocket && (strstr(dest, "C"))) {
-		printf("%s", msg); // Write to console
+	if (!ConSocket && (strstr(dest, "C"))) { // Write to console
+		if (strstr(dest, "w"))	// Warning msg in yellow
+			printf(COLOR_YELLOW "%s" COLOR_RESET, msg);
+		else if (strstr(dest, "e")) // Error message in Red
+			printf(COLOR_RED "%s" COLOR_RESET, msg);
+		else
+			printf("%s", msg);
 	}
 
 	if (ConSocket && (strstr(dest, "S"))) {
-		char buff[1024], sdest[10];
+		char buff[msize + 12], sdest[10];
 		sprintf(sdest, "%s", strstr(dest, "S") + 1);
 		size = 2 + (uint16_t)strlen(sdest) + (uint16_t)strlen(msg);
 		buff[0] = size & 0xFF;
@@ -510,7 +517,19 @@ int Con_printf(char *dest, char *fmt, ...)
 	}
 		
 	if ((ConLog != NULL) && (strstr(dest, "L"))) {
-		fprintf(ConLog, "%s", msg); // Write to Log File
+		uint64_t log_time = get_time();
+		char type[50];
+		char mmsg[500];
+		// warning: JW, error: JE, information: JI
+		if (strstr(dest, "w"))	// Warning msg in yellow
+			sprintf(type, "JW");	
+		else if (strstr(dest, "e")) // Error message in Red
+			sprintf(type, "JE");
+		else
+			sprintf(type, "JI");
+
+		sprintf(mmsg, "[%" PRIu64 "][%s]%s", log_time, type, msg);
+		fprintf(ConLog, "%s", mmsg); // Write to Log File
 		fflush(ConLog);
 	}
 	return 0;

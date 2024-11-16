@@ -25,9 +25,7 @@
 
 #include "FERS_LL.h"
 #include "FERSlib.h"
-#include "FERS_Registers.h"
-#include "MultiPlatform.h"
-#include "console.h"
+
 
 
 #define COMMAND_PORT		"9760"  // Slow Control Port (access to Registers)
@@ -49,10 +47,33 @@ static int RxStatus[FERSLIB_MAX_NBRD] = { 0 };			// 0=not started, 1=idle (wait 
 static int QuitThread[FERSLIB_MAX_NBRD] = { 0 };		// Quit Thread
 static f_thread_t ThreadID[FERSLIB_MAX_NBRD];			// RX Thread ID
 static mutex_t RxMutex[FERSLIB_MAX_NBRD];				// Mutex for the access to the Rx data buffer and pointers
-static FILE *Dump[FERSLIB_MAX_NBRD] = { NULL };			// low level data dump files (for debug)
+static FILE* Dump[FERSLIB_MAX_NBRD] = { NULL };			// low level data dump files (for debug)
+static FILE* RawData[FERSLIB_MAX_NBRD] = { NULL };		// Raw data saving for a further reprocessing
+static uint8_t ReadData_Init[FERSLIB_MAX_NBRD] = { 0 }; // Re-init read pointers after run stop
+static int subrun[FERSLIB_MAX_NBRD] = { 0 };			// Sub Run index
+static int64_t size_file[FERSLIB_MAX_NBRD] = { 0 };		// Size of Raw data output file
 
 #define ETH_BLK_SIZE  (1024)						// Max size of one packet in the recv 
 #define RX_BUFF_SIZE  (1024*1024)					// Size of the local Rx buffer
+
+// ********************************************************************************************************
+// Utility for increase subrun number for RawData output file
+// ********************************************************************************************************
+// --------------------------------------------------------------------------------------------------------
+// Description: Close and Open a new RawData output file increasing the subrun number
+// Inputs:		None
+// Return:		0
+// --------------------------------------------------------------------------------------------------------
+int LLeth_IncreaseRawDataSubrun(int bidx) {
+	fclose(RawData[bidx]);
+	++subrun[bidx];
+	size_file[bidx] = 0;
+	char filename[200];
+	sprintf(filename, "%s.%d_eth.dat", RawDataFilename[bidx], subrun[bidx]);
+	RawData[bidx] = fopen(filename, "wb");
+	return 0;
+}
+
 
 // *********************************************************************************************************
 // Socket connection
@@ -75,7 +96,7 @@ f_socket_t LLeth_ConnectToSocket(char *board_ip_addr, char *port)
 	WSADATA wsaData;
 	iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if (iResult != 0) {
-		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("WSAStartup failed with error: %d\n", iResult);
+		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("[ERROR] WSAStartup failed with error: %d\n", iResult);
 		return 1;
 	}
 #endif
@@ -88,7 +109,7 @@ f_socket_t LLeth_ConnectToSocket(char *board_ip_addr, char *port)
 	// Resolve the server address and port
 	iResult = getaddrinfo(board_ip_addr, port, &hints, &result);
 	if (iResult != 0) {
-		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("LCSm", "getaddrinfo failed with error: %d\n", iResult);
+		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("[ERROR] getaddrinfo failed with error: %d\n", iResult);
 		f_socket_cleanup();
 		return f_socket_invalid;
 	}
@@ -99,7 +120,7 @@ f_socket_t LLeth_ConnectToSocket(char *board_ip_addr, char *port)
 		// Create a SOCKET for connecting to server
 		ConnectSocket = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
 		if (ConnectSocket == f_socket_invalid) {
-			if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("socket failed with error: %ld\n", f_socket_errno); // WSAGetLastError());
+			if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("[ERROR] socket failed with error: %ld\n", f_socket_errno); // WSAGetLastError());
 			f_socket_cleanup();
 			return f_socket_invalid;
 		}
@@ -152,7 +173,7 @@ f_socket_t LLeth_ConnectToSocket(char *board_ip_addr, char *port)
 	freeaddrinfo(result);
 
 	if (ConnectSocket == f_socket_invalid) {
-		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("Unable to connect to server!\n");
+		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("[ERROR] Unable to connect to server!\n");
 		f_socket_cleanup();
 		return f_socket_invalid;
 	} else return ConnectSocket;
@@ -184,13 +205,13 @@ int LLeth_WriteReg_i2c(int bindex, uint32_t address, uint32_t data)
 	memcpy(&sendbuf[8], &data, 4);
 	iResult = send(sck, sendbuf, 12, 0);
 	if (iResult == f_socket_error) {
-		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("WriteReg_i2c, send with error: %d\n", f_socket_errno); // WSAGetLastError());
+		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("[ERROR] WriteReg_i2c, send with error: %d\n", f_socket_errno); // WSAGetLastError());
 		f_socket_cleanup();
 		return -1;
 	}
 	iResult = recv(sck, sendbuf, 4, 0);
 	if (iResult == f_socket_error) {
-		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("WriteReg_i2c, recv failed with error: %d\n", f_socket_errno); // WSAGetLastError());
+		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("[ERROR] WriteReg_i2c, recv failed with error: %d\n", f_socket_errno); // WSAGetLastError());
 		f_socket_cleanup();
 		return -1;
 	}
@@ -219,15 +240,15 @@ int LLeth_ReadReg_i2c(int bindex, uint32_t address, uint32_t *data)
 	memcpy(&sendbuf[4], &address, 4);
 	iResult = send(sck, sendbuf, 8, 0);
 	if (iResult == f_socket_error) {
-		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("ReadReg_i2c, send failed with error: %d\n", f_socket_errno); // WSAGetLastError());
+		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("[ERROR] ReadReg_i2c, send failed with error: %d\n", f_socket_errno); // WSAGetLastError());
 		f_socket_cleanup();
 		return -1;
 	}
 	iResult = recv(sck, sendbuf, 4, 0);
 	if (iResult < 4)
-		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("Incomplete read reg\n");
+		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("[ERROR] Incomplete read reg\n");
 	if (iResult == f_socket_error) {
-		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("ReadReg_i2c, recv failed with error: %d\n", f_socket_errno); // WSAGetLastError());
+		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("[ERROR] ReadReg_i2c, recv failed with error: %d\n", f_socket_errno); // WSAGetLastError());
 		f_socket_cleanup();
 		return -1;
 	}
@@ -263,7 +284,7 @@ int LLeth_WriteMem(int bindex, uint32_t address, char *data, uint16_t size)
 
 	iResult = send(sck, sendbuf, 12+size, 0);
  	if (iResult == f_socket_error) {
-		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("Write mem, send failed with error: %d\n", f_socket_errno); // WSAGetLastError());
+		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("[ERROR] Write mem, send failed with error: %d\n", f_socket_errno); // WSAGetLastError());
 		f_socket_cleanup();
 		free(sendbuf);
 		return -1;
@@ -271,7 +292,7 @@ int LLeth_WriteMem(int bindex, uint32_t address, char *data, uint16_t size)
 
 	iResult = recv(sck, sendbuf, 4, 0);
 	if (iResult == f_socket_error) {
-		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("Write mem, recv failed with error: %d\n", f_socket_errno); // WSAGetLastError());
+		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("[ERROR] Write mem, recv failed with error: %d\n", f_socket_errno); // WSAGetLastError());
 		f_socket_cleanup();
 		free(sendbuf);
 		return -1;
@@ -306,14 +327,14 @@ int LLeth_ReadMem(int bindex, uint32_t address, char *data, uint16_t size)
 
 	iResult = send(sck, sendbuf, 12, 0);
 	if (iResult == f_socket_error) {
-		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("Read mem, send failed with error: %d\n", f_socket_errno); // WSAGetLastError());
+		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("[ERROR] Read mem, send failed with error: %d\n", f_socket_errno); // WSAGetLastError());
 		f_socket_cleanup();
 		return -1;
 	}
 
 	iResult = recv(sck, data, size, 0);
 	if (iResult == f_socket_error) {
-		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("Read mem, recv failed with error: %d\n", f_socket_errno); // WSAGetLastError());
+		if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("[ERROR] Read mem, recv failed with error: %d\n", f_socket_errno); // WSAGetLastError());
 		f_socket_cleanup();
 		return -1;
 	}
@@ -375,6 +396,7 @@ static void* eth_data_receiver(void *params) {
 		if (RxStatus[bindex] == RXSTATUS_IDLE) {
 			if ((FERS_ReadoutStatus == ROSTATUS_RUNNING) && empty) {  // start of run
 				// Clear Buffers
+				ReadData_Init[bindex] = 1;
 				RxBuff_rp[bindex] = 0;
 				RxBuff_wp[bindex] = 0;
 				RxB_r[bindex] = 0;
@@ -479,6 +501,19 @@ static void* eth_data_receiver(void *params) {
 		}
 		tdata = ct;
 
+#if (THROUGHPUT_METER == 1)
+		// Rate Meter: print raw data throughput (RxBuff_wp is not updated, thus the data consumer doesn't see any data to process)
+		static uint64_t totnb = 0, lt = ct, l0 = ct;
+		totnb += nbrx;
+		if ((ct - lt) > 1000) {
+			printf("%6.1f s: %10.6f MB/s\n", float(ct - l0) / 1000, float(totnb) / (ct - lt) / 1000);
+			totnb = 0;
+			lt = ct;
+		}
+		unlock(RxMutex[bindex]);
+		continue;
+#endif
+
 		lock(RxMutex[bindex]);
 		RxBuff_wp[bindex] += nbrx;
 		if ((ct - pt) > 10) {  // every 10 ms, check if the data consumer is waiting for data or if the thread has to quit
@@ -502,6 +537,17 @@ static void* eth_data_receiver(void *params) {
 			}
 			fflush(Dump[bindex]);
 		}
+		// Saving Raw data output file
+		if (EnableRawData) { 
+			size_file[bindex] += nbrx;
+			if (EnableMaxSizeFile && size_file[bindex] > MaxSizeRawDataFile) {
+				LLeth_IncreaseRawDataSubrun(bindex);
+				size_file[bindex] = nbrx;
+			}
+			if (RawData[bindex] != NULL)
+				fwrite(wpnt, sizeof(char), nbrx, RawData[bindex]);
+		}
+
 		unlock(RxMutex[bindex]);
 	}
 
@@ -524,13 +570,15 @@ int LLeth_ReadData(int bindex, char *buff, int maxsize, int *nb) {
 	static int Nbr[FERSLIB_MAX_NBRD] = { 0 };
 
 	*nb = 0;
-	if ((FERS_ReadoutStatus == ROSTATUS_IDLE) || (FERS_ReadoutStatus == ROSTATUS_FLUSHING)) {
+	if (trylock(RxMutex[bindex]) != 0) return 0;
+	if (ReadData_Init[bindex]) {
 		RdReady[bindex] = 0;
 		Nbr[bindex] = 0;
+		ReadData_Init[bindex] = 0;
+		unlock(RxMutex[bindex]);
 		return 2;
 	} 
 
-	if (trylock(RxMutex[bindex]) != 0) return 0;
 	if ((RxStatus[bindex] != RXSTATUS_RUNNING) && (RxStatus[bindex] != RXSTATUS_EMPTYING)) {
 		unlock(RxMutex[bindex]);
 		return 2;
@@ -565,11 +613,85 @@ int LLeth_ReadData(int bindex, char *buff, int maxsize, int *nb) {
 	return 1;
 }
 
+// flushing is used as reset for the sub run index. This is to prevent issues
+// at stop/start
+int LLeth_ReadData_File(int bindex, char* buff, int maxsize, int* nb, int flushing) {	
+	uint8_t stop_loop = 1;
+	static int tmp_srun[FERSLIB_MAX_NBRD] = { 0 };
+	static int fsizeraw[FERSLIB_MAX_NBRD] = { 0 };
+	static FILE* ReadRawData[FERSLIB_MAX_NBRD] = { NULL };
+	if (flushing) {
+		tmp_srun[bindex] = 0;
+		return 0;
+	}
+	if (ReadRawData[bindex] == NULL) {	// Open Raw data file
+		char filename[200];
+		sprintf(filename, "%s.%d_eth.dat", RawDataFilename[bindex], tmp_srun[bindex]);
+		ReadRawData[bindex] = fopen(filename, "rb");
+		if (ReadRawData[bindex] == NULL) {	// If the file is still NULL, no more subruns are available
+			FERS_LibMsg("[INFO][BRD %02d] RawData reprocessing completed.\n", bindex);
+			tmp_srun[bindex] = 0;
+			return 4;
+		}
+		fseek(ReadRawData[bindex], 0, SEEK_END);	// Get the file size
+		fsizeraw[bindex] = ftell(ReadRawData[bindex]);
+		fseek(ReadRawData[bindex], 0, SEEK_SET);
+	}
+
+	fsizeraw[bindex] -= maxsize;	
+	if (fsizeraw[bindex] < 0)	// Read what is missing from the current file
+		maxsize = maxsize + fsizeraw[bindex];
+
+	fread(buff, sizeof(char), maxsize, ReadRawData[bindex]);
+
+	if (fsizeraw[bindex] <= 0) {
+		fclose(ReadRawData[bindex]);
+		ReadRawData[bindex] = NULL;
+		++tmp_srun[bindex];
+	}
+	*nb = maxsize;
+
+	return 1;
+}
+
 
 
 // *********************************************************************************************************
 // Open/Close
 // *********************************************************************************************************
+// --------------------------------------------------------------------------------------------------------- 
+// Description: Open the Raw (LL) data output file
+// Inputs:		bindex: board index
+// Return:		0=OK, negative number = error code
+// --------------------------------------------------------------------------------------------------------- 
+int LLeth_OpenRawOutputFile(int bidx) {
+	if (ProcessRawData) return 0;
+
+	if (EnableRawData && RawData[bidx] == NULL) {
+		char filename[200];
+		sprintf(filename, "%s.%d_eth.dat", RawDataFilename[bidx], subrun[bidx]);
+		RawData[bidx] = fopen(filename, "wb");
+	}
+	return 0;
+}
+
+// --------------------------------------------------------------------------------------------------------- 
+// Description: Close the Raw (LL) data output file
+// Inputs:		bindex: board index
+// Return:		0=OK, negative number = error code
+// --------------------------------------------------------------------------------------------------------- 
+int LLeth_CloseRawOutputFile(int bidx) {
+	if (ProcessRawData) return 0;
+
+	if (RawData[bidx] != NULL) {
+		fclose(RawData[bidx]);
+		RawData[bidx] = NULL;
+	}
+	size_file[bidx] = 0;
+	subrun[bidx] = 0;
+	return 0;
+}
+
 // --------------------------------------------------------------------------------------------------------- 
 // Description: Open the direct connection to the FERS board through the ethernet interface. 
 //				After the connection the function allocates the memory buffers starts the thread  
@@ -582,6 +704,14 @@ int LLeth_OpenDevice(char *board_ip_addr, int bindex) {
 	int started, ret;
 
 	if (bindex >= FERSLIB_MAX_NBRD) return -1;
+	if (FERS_Offline) {
+		if ((DebugLogs & DBLOG_LL_DATADUMP) || (DebugLogs & DBLOG_LL_MSGDUMP)) {
+			char filename[200];
+			sprintf(filename, "ll_log_%d.txt", bindex);
+			Dump[bindex] = fopen(filename, "w");
+		}
+		return 0;
+	}
 
 	FERS_CtrlSocket[bindex] = LLeth_ConnectToSocket(board_ip_addr, COMMAND_PORT);
 	FERS_DataSocket[bindex] = LLeth_ConnectToSocket(board_ip_addr, STREAMING_PORT);
@@ -624,18 +754,11 @@ int LLeth_CloseDevice(int bindex)
 	unlock(RxMutex[bindex]);
 
 	shutdown(FERS_CtrlSocket[bindex], SHUT_SEND);	
-#ifndef _WIN32
-	unsigned char data;
-	while (recv(FERS_CtrlSocket[bindex], &data, sizeof(data), 0) != 0);
-#endif
 	if (FERS_CtrlSocket[bindex] != f_socket_invalid) {
 		f_socket_close(FERS_CtrlSocket[bindex]);
 	}
 
 	shutdown(FERS_DataSocket[bindex], SHUT_SEND);
-#ifndef _WIN32
-	while (recv(FERS_DataSocket[bindex], &data, sizeof(data), 0) != 0);
-#endif
 	if (FERS_DataSocket[bindex] != f_socket_invalid) {
 		f_socket_close(FERS_DataSocket[bindex]);
 	}
