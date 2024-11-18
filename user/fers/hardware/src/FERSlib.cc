@@ -58,7 +58,7 @@ mutex_t FERS_RoMutex = NULL;							// Mutex for the access to FERS_ReadoutStatus
 #else
 mutex_t FERS_RoMutex;									// Mutex for the access to FERS_ReadoutStatus
 #endif
-int DebugLogs = 0;										// Debug Logs
+int DebugLogs = 1;										// Debug Logs
 uint8_t EnableRawData = 0;								// Enable LowLevel data saving
 uint8_t ProcessRawData = 0;								// Enable ReadingOut the RawData file saved
 uint8_t EnableMaxSizeFile;								// Enable the Max size for Raw Data file saving
@@ -1606,7 +1606,7 @@ static int FUP_WriteFPGAFirmwareOnFlash(int handle, char* pageText, int textLen,
  				printf("*** CRC TX error: %08X %08X\n", crc_R, crc_T); 
 			}
 		// AMA va aggiunto un timeout
-		} while ((crc_R != crc_T) && (cnt < 20)); // ripeto la lettura del CRC (10 volte) finché non è uguale a quello calcolato per essere sicura che il pacchetto è tutto nella memoria del uBlaze
+		} while ((crc_R != crc_T) && (cnt < 20)); // ripeto la lettura del CRC (10 volte) finchï¿½ non ï¿½ uguale a quello calcolato per essere sicura che il pacchetto ï¿½ tutto nella memoria del uBlaze
 		if (cnt == 20) {
 			if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("[ERROR][BRD%02d] Failed firmware upgrade via TDL: CRC TX (%08X) and RX (%08X) does not match\n", crc_T, crc_R);
 			char err[1024];

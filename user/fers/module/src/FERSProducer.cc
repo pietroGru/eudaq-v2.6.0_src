@@ -14,7 +14,7 @@
 #include "FERS_EUDAQ.h"
 #include "configure.h"
 #include "FERSlib.h"
-#include "JanusC.h"
+// #include "JanusC.h"
 
 RunVars_t RunVars;
 int SockConsole;	// 0: use stdio console, 1: use socket console
@@ -22,6 +22,7 @@ char ErrorMsg[250];
 //int NumBrd=2; // number of boards
 
 Config_t WDcfg;
+
 
 class FERSProducer : public eudaq::Producer {
 	public:
@@ -64,7 +65,6 @@ class FERSProducer : public eudaq::Producer {
 		std::chrono::time_point<std::chrono::system_clock> runStartTime;
 };
 
-
 namespace{
 	auto dummy0 = eudaq::Factory<eudaq::Producer>::
 		Register<FERSProducer, const std::string&, const std::string&>(FERSProducer::m_id_factory);
@@ -77,11 +77,13 @@ FERSProducer::FERSProducer(const std::string & name, const std::string & runcont
 	m_exit_of_run(false),
 	runStartTime(std::chrono::system_clock::now())
 	{
+		std::cout << "Hello world!" << std::endl;
 	}
 
 
 void FERSProducer::DoInitialise(){
-	EUDAQ_INFO("Getting init file");
+	// EUDAQ_INFO("Getting init file");
+	EUDAQ_INFO("THIS IS ME");
 	auto ini = GetInitConfiguration();
 	std::string lock_path = ini->Get("FERS_DEV_LOCK_PATH", "ferslockfile.txt");
 	EUDAQ_INFO("Lockfile path "+lock_path);
@@ -135,7 +137,7 @@ void FERSProducer::DoInitialise(){
 //----------DOC-MARK-----BEG*CONF-----DOC-MARK----------
 void FERSProducer::DoConfigure(){
 	auto conf = GetConfiguration();
-	//conf->Print(std::cout);
+	// conf->Print(std::cout);
 
 	m_plane_id = conf->Get("EX0_PLANE_ID", 0);
 	m_ms_busy = std::chrono::milliseconds(conf->Get("EX0_DURATION_BUSY_MS", 50));
@@ -201,7 +203,6 @@ void FERSProducer::DoConfigure(){
 	fclose(conf_file);
 	
 	//EUDAQ_WARN( "AcquisitionMode: "+std::to_string(WDcfg.AcquisitionMode));
-
 	ret = ConfigureFERS(handle, 0); // 0 = hard, 1 = soft (no acq restart)
 	if (ret != 0) EUDAQ_THROW("ConfigureFERS failed");
 }
@@ -275,6 +276,8 @@ void FERSProducer::RunLoop(){
 		int status = FERS_GetEvent(vhandle, &bindex, &DataQualifier, &tstamp_us, &Event, &nb);
 
 		if(status==1){
+			std::cout << "DataQualifier is: " << DataQualifier << std::endl;
+
 			auto absFERSdownloadTime = std::chrono::system_clock::now().time_since_epoch();
 			auto absFERSdownloadTime_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(absFERSdownloadTime).count();
 			//if (status > 0)std::cout<<"--status of FERS_GetEvent (0=No Data, 1=Good Data 2=Not Running, <0 = error) = "<< std::to_string(status)<<std::endl;
@@ -283,6 +286,7 @@ void FERSProducer::RunLoop(){
 			auto tp_end_of_busy = tp_trigger + m_ms_busy;
 			// event creation
 			if ( DataQualifier == DTQ_SPECT ) {
+				continue;
 			// if ( DataQualifier >0 || (trigger_n < m_fers_add_events) ) {
 				//std::cout<<"--FERS_ReadoutStatus (0=idle, 1=running) = " << FERS_ReadoutStatus <<std::endl;
 				//std::cout<<"--status of FERS_GetEvent (0=No Data, 1=Good Data 2=Not Running, <0 = error) = "<< std::to_string(status)<<std::endl;
@@ -316,11 +320,11 @@ void FERSProducer::RunLoop(){
 				SendEvent(std::move(ev));
 				
 				// std::this_thread::sleep_until(tp_end_of_busy);
-				if (trigger_n < m_fers_add_events) std::this_thread::sleep_until(tp_end_of_busy);
+				// if (trigger_n < m_fers_add_events) std::this_thread::sleep_until(tp_end_of_busy);
 				trigger_n++;
-				EUDAQ_INFO("DataQualifier is SPECT: 		"+std::to_string(DataQualifier));
+				// EUDAQ_INFO("DataQualifier is SPECT: 		"+std::to_string(DataQualifier));
 			}else{
-				EUDAQ_WARN("DataQualifier is not SPECT: "+std::to_string(DataQualifier));
+				// EUDAQ_WARN("DataQualifier is not SPECT: "+std::to_string(DataQualifier));
 			}
 		}else if(status<0){
 			// Error, stop the acquisition
