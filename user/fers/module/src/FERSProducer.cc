@@ -77,13 +77,12 @@ FERSProducer::FERSProducer(const std::string & name, const std::string & runcont
 	m_exit_of_run(false),
 	runStartTime(std::chrono::system_clock::now())
 	{
-		std::cout << "Hello world!" << std::endl;
+		std::cout << "Hello from FERSProducer!" << std::endl;
 	}
 
 
 void FERSProducer::DoInitialise(){
-	// EUDAQ_INFO("Getting init file");
-	EUDAQ_INFO("THIS IS ME");
+	EUDAQ_INFO("Getting init file");
 	auto ini = GetInitConfiguration();
 	std::string lock_path = ini->Get("FERS_DEV_LOCK_PATH", "ferslockfile.txt");
 	EUDAQ_INFO("Lockfile path "+lock_path);
@@ -276,8 +275,6 @@ void FERSProducer::RunLoop(){
 		int status = FERS_GetEvent(vhandle, &bindex, &DataQualifier, &tstamp_us, &Event, &nb);
 
 		if(status==1){
-			std::cout << "DataQualifier is: " << DataQualifier << std::endl;
-
 			auto absFERSdownloadTime = std::chrono::system_clock::now().time_since_epoch();
 			auto absFERSdownloadTime_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(absFERSdownloadTime).count();
 			//if (status > 0)std::cout<<"--status of FERS_GetEvent (0=No Data, 1=Good Data 2=Not Running, <0 = error) = "<< std::to_string(status)<<std::endl;
@@ -285,14 +282,7 @@ void FERSProducer::RunLoop(){
 			auto tp_trigger = std::chrono::steady_clock::now();
 			auto tp_end_of_busy = tp_trigger + m_ms_busy;
 			// event creation
-			if ( DataQualifier == DTQ_SPECT ) {
-				continue;
-			// if ( DataQualifier >0 || (trigger_n < m_fers_add_events) ) {
-				//std::cout<<"--FERS_ReadoutStatus (0=idle, 1=running) = " << FERS_ReadoutStatus <<std::endl;
-				//std::cout<<"--status of FERS_GetEvent (0=No Data, 1=Good Data 2=Not Running, <0 = error) = "<< std::to_string(status)<<std::endl;
-				//std::cout<<"  --bindex = "<< std::to_string(bindex) <<" tstamp_us = "<< std::to_string(tstamp_us) <<std::endl;
-				//std::cout<<"  --DataQualifier = "<< std::to_string(DataQualifier) +" nb = "<< std::to_string(nb) <<std::endl;
-								
+			if ( (DataQualifier & 0xF) == DTQ_SPECT ) {								
 				std::vector<uint8_t> data;
 				FERSpack_CLEAR_event(Event, m_plane_id, GetRunNumber(), trigger_n, m_fers_add_events, secondsDouble, data);
 				
@@ -312,6 +302,7 @@ void FERSProducer::RunLoop(){
 				std::chrono::microseconds timeDifference(static_cast<int64_t>(tstamp_us));
 				auto absFERShwTime = runStartTime + timeDifference;
 				uint64_t absFERShwTime_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(absFERShwTime.time_since_epoch()).count();
+				// std::cout << absFERShwTime_ns << " status is " << status << " DataQualifier is: " << DataQualifier << " Timestamp: " << tstamp_us << std::endl;
 
 				ev->SetTimestamp(absFERShwTime_ns, absFERSdownloadTime_ns);
 				

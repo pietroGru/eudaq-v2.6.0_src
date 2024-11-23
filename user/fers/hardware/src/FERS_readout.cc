@@ -649,7 +649,7 @@ int FERS_DecodeEvent(int handle, uint32_t *EvBuff, int nb, int *DataQualifier, d
 	// decode event data structure
 	size = EvBuff[0] & 0xFFFF;  // in 32bit words
 	*DataQualifier = (EvBuff[0] >> 24) & 0xFF;
-	Con_printf("C", "DataQualifier %d\n", *DataQualifier);
+	// Con_printf("C", "DataQualifier %d\n", *DataQualifier);
 	
 	if (*DataQualifier == DTQ_TEST) {  // test Mode 
 		*tstamp_us = (double)(((uint64_t)EvBuff[4] << 32) | (uint64_t)EvBuff[3]) * CLK_PERIOD / 1000.0;

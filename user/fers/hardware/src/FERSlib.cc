@@ -58,7 +58,7 @@ mutex_t FERS_RoMutex = NULL;							// Mutex for the access to FERS_ReadoutStatus
 #else
 mutex_t FERS_RoMutex;									// Mutex for the access to FERS_ReadoutStatus
 #endif
-int DebugLogs = 1;										// Debug Logs
+int DebugLogs = 0;										// Debug Logs
 uint8_t EnableRawData = 0;								// Enable LowLevel data saving
 uint8_t ProcessRawData = 0;								// Enable ReadingOut the RawData file saved
 uint8_t EnableMaxSizeFile;								// Enable the Max size for Raw Data file saving
