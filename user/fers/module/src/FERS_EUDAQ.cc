@@ -22,24 +22,93 @@
 #include "configure.h"
 
 std::fstream runfile[MAX_NBRD]; // pointers to ascii output data files
-
+// ## FERS datatype
+// # This the raw datastructure coming from FERS producer
+// FERSproducer_nametypes = [
+//     ("run",         np.zeros(1, dtype=np.uint32),               "run/i",            "run id number"),
+//     ("runTime",     np.zeros(1, dtype=np.float64),              "runTime/D",        "posix time of the run start on the pc"),
+//     ("event",       np.zeros(1, dtype=np.uint32),               "event/i",          "event id number"),
+//     ("fers_evt",    np.zeros(1, dtype=np.uint32),               "fers_evt/i",       "fers event id"),
+//     ("fers_trgtime",np.zeros(1, dtype=np.float64),              "fers_trgtime/D",   "fers trigger time from run start [us]"),
+//     ("timestamp",   np.zeros(1, dtype=np.float64),              "timestamp/D",      "event posix timestamp (runstart+hwfers)"),
+//     ("timestamp_sw",np.zeros(1, dtype=np.float64),              "timestamp_sw/D",   "event posix timestamp (fers_getevent)"),
+//     ("hold",        np.zeros(1, dtype=np.uint32),               "hold/i",           "Hold delay setting of the FERS card [uint32]"),
+//     ("gain",        np.zeros(64, dtype=np.uint32),              "gain[64]/I",      "Gain of the fers_channels [int32]"),
+//     ("fers_ch",     np.zeros(64, dtype=np.uint32),              "fers_ch[64]/i",  "fers ch [uint32]"),
+//     ("strip",       np.zeros(64, dtype=np.uint32),              "strip[64]/i",    "strip no. [uint32]"),
+//     ("lg",          np.zeros(64, dtype=np.int32),               "lg[64]/I",        "fers low-gain (signed) adc [int32]"),
+//     ("hg",          np.zeros(64, dtype=np.int32),               "hg[64]/I",        "fers high-gain (signed) adc [int32]")           
+// ]
 struct FERS_nametypes{
-            unsigned int run;//",         np.array([0], dtype=np.uint32),             "run/i",            "Run id number"),
-            double runTime;//",     np.array([0], dtype=np.float64),            "runTime/D",        "Posix time of the run start on the PC"),
-            unsigned int event;//",       np.array([0], dtype=np.uint32),             "event/i",          "Event id number"),
-            double timestamp[2];//",   np.array([0,0], dtype=np.float64),          "timestamp[2]/D",   "Event posix timestamp (absolute)"),
-            unsigned int fers_evt[2];//",    np.array([0,0], dtype=np.uint32),           "fers_evt[2]/i",    "FERS event ID [0-1000]"),
-            double fers_trgtime[2];//",np.array([0,0], dtype=np.float64),          "fers_trgtime[2]/D","FERS trigger time from run start [us]"),
-            unsigned int fers_ch0[64];//",    np.zeros(64, dtype=np.uint32),              "fers_ch0[64]/i",   "FERS ch det0 [uint32]"),
-            unsigned int fers_ch1[64];//",    np.zeros(64, dtype=np.uint32),              "fers_ch1[64]/i",   "FERS ch det1 [uint32]"),
-            unsigned int strip0[64];//",      np.zeros(64, dtype=np.uint32),              "strip0[64]/i",     "Strip ID det0 [uint32]"),
-            unsigned int strip1[64];//",      np.zeros(64, dtype=np.uint32),              "strip1[64]/i",     "Strip ID det1 [uint32]"),
-            int lg0[64];//",         np.zeros(64, dtype=np.int32),               "lg0[64]/I",        "FERS low-gain (signed) ADC det0 [int32]"),
-            int hg0[64];//",         np.zeros(64, dtype=np.int32),               "hg0[64]/I",        "FERS high-gain (signed) ADC det0 [int32]"),
-            int lg1[64];//",         np.zeros(64, dtype=np.int32),               "lg1[64]/I",        "FERS low-gain (signed) ADC det1 [int32]"),
-            int hg1[64];//",         np.zeros(64, dtype=np.int32),               "hg1[64]/I",        "FERS high-gain (signed) ADC det1 [int32]")
+  uint32_t      run = 0;
+  double        runTime = 0.0;
+  uint32_t      event = 0;
+  uint32_t      fers_evt = 0;
+  double        fers_trgtime = 0.0;
+  double        timestamp = 0.0;
+  double        timestamp_sw = 0.0;
+  uint32_t      hold = 0;
+  uint32_t      gain[64] = {0};
+  uint32_t      fers_ch[64] = {0};
+  uint32_t      strip[64] = {0};
+  int32_t       lg[64] = {0};
+  int32_t       hg[64] = {0};
 };
+
 u_int stripmap[64] = {65, 67, 69, 71, 73, 75, 77, 79, 81, 83, 85, 87, 89, 91, 93, 95, 97, 99, 101, 103, 105, 107, 109, 111, 113, 115, 117, 119, 121, 123, 125, 127, 128, 126, 124, 122, 120, 118, 116, 114, 112, 110, 108, 106, 104, 102, 100, 98, 96, 94, 92, 90, 88, 86, 84, 82, 80, 78, 76, 74, 72, 70, 68, 66};
+
+
+
+void FERSpack_CLEAR_event(void* Event, int plane_id, int run_number, int event_number, int add_events, double time_begin, std::vector<uint8_t> &vec)
+{
+  const int nchan = 64;
+  FERS_nametypes fers_struct;
+  size_t structSize = sizeof(fers_struct);
+  // temporary event, used to correctly interpret the Event.
+  // The same technique is used in the other pack routines as well
+
+  // the following group of vars is not really needed. Used for debug purposes.
+  // This is valid also for the other pack routines
+  vec.resize(structSize);
+  fers_struct.run = run_number;
+  fers_struct.runTime = time_begin;
+  fers_struct.event  = event_number;
+  fers_struct.timestamp = time_begin;
+  
+  //std::cout<<(double)tmpEvent->tstamp_us<<std::endl;
+  std::cout << "our_output.lg: ";
+  if (event_number>= add_events){
+    auto evt_Spect = (SpectEvent_t*)Event;
+    fers_struct.timestamp = (time_begin) + (1e-6 * (double)evt_Spect->tstamp_us);
+    fers_struct.fers_evt = (double)evt_Spect->trigger_id;
+    fers_struct.fers_trgtime = (double)evt_Spect->tstamp_us;
+
+    for (size_t i = 0; i<nchan; i++){
+        fers_struct.fers_ch[i] = i;
+        fers_struct.strip[i] = stripmap[i];
+        fers_struct.lg[i] = evt_Spect->energyLG[i]> 9000 ? ((int)evt_Spect->energyLG[i]-65535) : evt_Spect->energyLG[i];
+        fers_struct.hg[i] = evt_Spect->energyHG[i]> 9000 ? ((int)evt_Spect->energyHG[i]-65535) : evt_Spect->energyHG[i];
+        std::cout << fers_struct.lg[i] << "," << evt_Spect->energyLG[i] << " ";
+      }
+  } else {
+    fers_struct.fers_evt = (double)event_number;
+    fers_struct.fers_trgtime = (double)time_begin;
+
+    for (size_t i = 0; i<nchan; i++){
+        fers_struct.fers_ch[i] = i;
+        fers_struct.strip[i] = stripmap[i];
+        fers_struct.lg[i] = 0;
+        fers_struct.hg[i] = 0;
+      }
+  }
+  std::cout << std::endl;
+  memcpy(vec.data(), &fers_struct, structSize);
+}
+
+
+
+
+
 // puts a nbits (16, 32, 64) integer into an 8 bits vector.
 // bytes are in a machine-independent order
 void FERSpack(int nbits, uint32_t input, std::vector<uint8_t> *vec)
@@ -69,6 +138,7 @@ uint32_t FERSunpack32(int index, std::vector<uint8_t> vec)
                   +vec.at(index+3) *16777216;
 	return out;
 }
+
 uint64_t FERSunpack64(int index, std::vector<uint8_t> vec)
 {
 	uint64_t out = vec.at(index) 
@@ -82,79 +152,6 @@ uint64_t FERSunpack64(int index, std::vector<uint8_t> vec)
 		 )*4294967296;
 	return out;
 }
-
-void FERSpack_CLEAR_event(void* Event, int plane_id, int run_number, int event_number, int add_events, double time_begin, std::vector<uint8_t> &vec)
-{
-  int x_pixel = 8;
-  int y_pixel = 8;
-  int nchan = x_pixel*y_pixel;
-  FERS_nametypes our_output;
-  // temporary event, used to correctly interpret the Event.
-  // The same technique is used in the other pack routines as well
-
-
-  size_t structSize = sizeof(our_output);
-  // the following group of vars is not really needed. Used for debug purposes.
-  // This is valid also for the other pack routines
-  vec.resize(structSize);
-  our_output.run = run_number;
-  our_output.runTime = time_begin;
-  our_output.event  = event_number;
-  //std::cout<<(double)tmpEvent->tstamp_us<<std::endl;
-  our_output.timestamp[plane_id] = (time_begin);
-  if (event_number>= add_events){
-    SpectEvent_t *tmpEvent = (SpectEvent_t*)Event;
-    our_output.timestamp[plane_id] = (time_begin) + (1e-6 * (double)tmpEvent->tstamp_us);
-    our_output.fers_evt[plane_id] = (double)tmpEvent->trigger_id;
-    our_output.fers_trgtime[plane_id] = (double)tmpEvent->tstamp_us;
-
-    switch(plane_id){
-      case 0:
-      for (size_t i = 0; i<nchan; i++){
-        our_output.fers_ch0[i] = i;
-        our_output.strip0[i] = stripmap[i];
-        our_output.lg0[i] = tmpEvent->energyLG[i]> 9000 ? ((int)tmpEvent->energyLG[i]-65535) : tmpEvent->energyLG[i];
-        our_output.hg0[i] = tmpEvent->energyHG[i]> 9000 ? ((int)tmpEvent->energyHG[i]-65535) : tmpEvent->energyHG[i];
-        our_output.fers_ch1[i] = i;
-        our_output.strip1[i] = stripmap[i];
-        our_output.lg1[i] = 0;
-        our_output.hg1[i] = 0;
-      }
-      break;
-
-      case 1:
-      for (size_t i = 0; i<nchan; i++){
-        our_output.fers_ch1[i] = i;
-        our_output.strip1[i] = stripmap[i];
-        our_output.lg1[i] = tmpEvent->energyLG[i]> 9000 ? ((int)tmpEvent->energyLG[i]-65535) : tmpEvent->energyLG[i];
-        our_output.hg1[i] = tmpEvent->energyHG[i]> 9000 ? ((int)tmpEvent->energyHG[i]-65535) : tmpEvent->energyHG[i];
-        our_output.fers_ch0[i] = i;
-        our_output.strip0[i] = stripmap[i];
-        our_output.lg0[i] = 0;
-        our_output.hg0[i] = 0;
-      }
-      break;
-    }
-  }
-  else {
-    our_output.timestamp[plane_id] = (time_begin);
-    our_output.fers_evt[plane_id] = (double)event_number;
-    our_output.fers_trgtime[plane_id] = (double)time_begin;
-
-    for (size_t i = 0; i<nchan; i++){
-      our_output.fers_ch0[i] = i;
-      our_output.strip0[i] = stripmap[i];
-      our_output.lg0[i] = 0;
-      our_output.hg0[i] = 0;
-      our_output.fers_ch1[i] = i;
-      our_output.strip1[i] = stripmap[i];
-      our_output.lg1[i] = 0;
-      our_output.hg1[i] = 0;
-    }
-  }
-  memcpy(vec.data(), &our_output, structSize);
-}
-
 
 
 void FERSpackevent(void* Event, int dataqualifier, std::vector<uint8_t> *vec)
