@@ -267,11 +267,12 @@ void FERSProducer::RunLoop(){
 	// Convert the duration to a double type
 	double secondsDouble = secondsSinceEpoch.count();
 
+	int bindex, DataQualifier, nb;
+	DataQualifier = -5;
+	double tstamp_us;
+	void *Event;
+
 	while(!m_exit_of_run){
-		int bindex, DataQualifier, nb;
-		DataQualifier = -5;
-		double tstamp_us;
-		void *Event;
 		int status = FERS_GetEvent(vhandle, &bindex, &DataQualifier, &tstamp_us, &Event, &nb);
 
 		if(status==1){
