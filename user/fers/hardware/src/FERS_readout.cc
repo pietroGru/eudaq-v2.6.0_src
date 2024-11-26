@@ -732,7 +732,9 @@ int FERS_DecodeEvent(int handle, uint32_t *EvBuff, int nb, int *DataQualifier, d
 		pnt += 2;
 		both_g = (*DataQualifier >> 4) & 0x01;  // both gain (LG and HG) are present
 		SpectEvent[h].qdmask = 0;
+		// printf("EnablePedCal %d , CommonPedestal %d\n", EnablePedCal, CommonPedestal); // @grutta
 		for (ch=0; ch<64; ch++) {
+			// printf("[%d] PedestalLG[%d]=%d\n", FERS_INDEX(handle), ch, PedestalLG[FERS_INDEX(handle)][ch]);  // @grutta
 			int16_t pedhg = EnablePedCal ? CommonPedestal - PedestalHG[FERS_INDEX(handle)][ch] : 0;
 			int16_t pedlg = EnablePedCal ? CommonPedestal - PedestalLG[FERS_INDEX(handle)][ch] : 0;
 			int16_t henergy, lenergy;
@@ -745,6 +747,7 @@ int FERS_DecodeEvent(int handle, uint32_t *EvBuff, int nb, int *DataQualifier, d
 					if (EvBuff[pnt] & 0x8000) SpectEvent[h].qdmask |= ((uint64_t)1 << ch);
 					henergy = (EvBuff[pnt] & 0x3FFF) + pedhg;
 					lenergy = ((EvBuff[pnt] >> 16) & 0x3FFF) + pedlg;
+					// printf("henergy=%i, lenergy=%i\n", henergy, lenergy); // @grutta
 					pnt++;
 				} else {
 					en = (hl == 0) ? EvBuff[pnt] & 0xFFFF : (EvBuff[pnt++]>>16) & 0xFFFF;
@@ -755,8 +758,8 @@ int FERS_DecodeEvent(int handle, uint32_t *EvBuff, int nb, int *DataQualifier, d
 				}
 				// negative numbers (due to pedestal subtraction) are forced to 0 
 				// number exceeding max_range (due to pedestal subtraction) are forced to  max_range
-				SpectEvent[h].energyLG[ch] = min(max(0, lenergy), MaxEnergyRange);
-				SpectEvent[h].energyHG[ch] = min(max(0, henergy), MaxEnergyRange);
+				SpectEvent[h].energyLG[ch] = lenergy; // min(max(0, lenergy), MaxEnergyRange); // @grutta
+				SpectEvent[h].energyHG[ch] = henergy; // min(max(0, henergy), MaxEnergyRange); // @grutta
 			}
 		}
 		if ((*DataQualifier & DTQ_TIMING) && (pnt < size)) {
@@ -1423,6 +1426,12 @@ int FERS_GetEvent(int *handle, int *bindex, int *DataQualifier, double *tstamp_u
 				if (ret < 0) {
 					if (ENABLE_FERSLIB_LOGMSG) FERS_LibMsg("[ERROR][BRD %02d] Decode error (ret = %d)\n", h_found, ret);
 					return ret;
+				}else{
+					if (ENABLE_FERSLIB_LOGMSG && (DataQualifier[h_found] & DTQ_SPECT)){
+						for(int i=0; i<64; i++){
+							FERS_LibMsg("[INFO][BRD %02d] Channel %d: %d)\n", h_found, i, ((SpectEvent_t*)Event[h_found])->energyLG[i]);
+						}
+					}
 				}
 				*nb = EvBuff_nb[h_found];
 				*bindex = h_found;
