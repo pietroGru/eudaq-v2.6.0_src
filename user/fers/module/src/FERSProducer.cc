@@ -46,7 +46,6 @@ class FERSProducer : public eudaq::Producer {
 		float fers_hv_vbias;
 		float fers_hv_imax;
 		int fers_acq_mode;
-		int vhandle[FERSLIB_MAX_NBRD];
 		// staircase params
 		uint8_t stair_do;
 		uint16_t stair_start, stair_stop, stair_step, stair_shapingt;
@@ -95,26 +94,25 @@ void FERSProducer::DoInitialise(){
 	
 	EUDAQ_INFO("FERS Address "+fers_ip_address+" and id "+fers_id);
 
-	for (int i=0; i<FERSLIB_MAX_NBRD; i++)
-		vhandle[i] = -1;
-	
-	int ret = FERS_OpenDevice(connection_path, handle);
+	memset(handle, -1, sizeof(*handle) * MAX_NBRD);
+
+	int ret = FERS_OpenDevice(connection_path, &handle[0]);
 	if(ret == 0){
 		EUDAQ_INFO("Connected to: " + std::string(connection_path));
 	}else{
 		EUDAQ_THROW("unable to connect to fers with ip address: "+ fers_ip_address);
 	}
+
+	FERS_BoardInfo_t BoardInfo;
+	ret = FERS_ReadBoardInfo(handle[0], &BoardInfo);
+	if (ret == 0) {
+		std::cout << "BoardInfo.FPGA_FWrev: " << BoardInfo.FPGA_FWrev << std::endl;
+	}else{
+		std::cout << "unable to read board info" << std::endl;
+	}
 	
-	memset(handle, -1, sizeof(*handle) * MAX_NBRD);
 	std::cout << "FERSProducer::DoInitialise() - FERS_OpenDevice() returned: " << handle << std::endl;
 	AcqStatus = ACQSTATUS_HW_CONNECTED;
-
-	auto ROmode = (WDcfg.EventBuildingMode != 0) ? 1 : 0;
-	for (int b = 0; b < WDcfg.NumBrd; b++) {
-		FERS_InitReadout(handle[b], ROmode, &a1);
-	}
-
-	AcqStatus = ACQSTATUS_READY;
 }
 
 //----------DOC-MARK-----BEG*CONF-----DOC-MARK----------
@@ -210,14 +208,31 @@ void FERSProducer::DoConfigure(){
 	if (MCSHistoNbin_local != NULL) WDcfg.MCSHistoNbin = MCSHistoNbin_local;
 
 
-	// for (int b = 0; b < WDcfg.NumBrd; b++) {
-	// 	ret = ConfigureFERS(handle[b], CFG_HARD);
-	// 	if (ret < 0)	EUDAQ_THROW(ret);
-	// }
-	ret = ConfigureFERS(handle[0], CFG_HARD);
-	// if (ret < 0)	EUDAQ_THROW(ret);
+	auto ROmode = (WDcfg.EventBuildingMode != 0) ? 1 : 0;
+	std::cout << "WDcfg.NumBrd " << WDcfg.NumBrd << std::endl;
+	for (int b = 0; b < WDcfg.NumBrd; b++) {
+		int ret  = FERS_InitReadout(handle[b], ROmode, &a1);
+		memset(&sEvt[b], 0, sizeof(ServEvent_t));
+		std::cout << "FERS_InitReadout() handle[g] " << handle[b] << std::endl;	
+	
+		if (ret < 0)	EUDAQ_THROW((std::string("Unable to FERS_InitReadout board ") + std::to_string(b) + std::to_string(ret)).c_str());
+		ret = ConfigureFERS(handle[b], CFG_HARD);
+		if (ret < 0)	EUDAQ_THROW((std::string("Unable to ConfigureFERS board ") + std::to_string(b) + std::to_string(ret)).c_str());
+	}
+
+	for (int b = 0; b < 16; b++) {
+		std::cout << "cards handles handle[g] " << handle[b] << std::endl;
+	}
+
+	// Additional cfg instructions
+	FERS_EnableRawdataWriteFile((WDcfg.OutFileEnableMask & OUTFILE_RAW_LL), WDcfg.DataFilePath, RunVars.RunNumber);
+	FERS_EnableLimitRawdataFileSize(WDcfg.EnableMaxFileSize, WDcfg.MaxOutFileSize);
+	FERS_EnableRawdataReadFile(WDcfg.EnableRawDataRead);
+	FERS_SetEnergyBitsRange(WDcfg.Range_14bit);					// @grutta this is fundamental to work!
 
 	m_fers_add_events = conf->Get("FERS_ADD_EVENTS",0);
+
+	AcqStatus = ACQSTATUS_READY;
 }
 
 
@@ -268,6 +283,8 @@ void FERSProducer::DoTerminate(){
 }
 
 
+
+
 void FERSProducer::RunLoop(){
 	auto tp_start_run = std::chrono::steady_clock::now();
 	auto start_clock = std::chrono::system_clock::now();
@@ -279,7 +296,7 @@ void FERSProducer::RunLoop(){
 	// Convert the duration to a double type
 	double secondsDouble = secondsSinceEpoch.count();
 
-	int brd, DataQualifier, nb;
+	int brd, DataQualifier, nb = 0;
 	DataQualifier = -5;
 	double tstamp_us;
 	void *Event;
@@ -288,6 +305,12 @@ void FERSProducer::RunLoop(){
 	double current_tstamp_us[MAX_NBRD];
 	double current_eventAbs_tstamp_ns[MAX_NBRD] = {runStartTime_ns};
 	
+	// Fill the array with values from 0 to 63
+	uint32_t linspace[64];
+	for (uint32_t i = 0; i < 64; ++i) {
+		linspace[i] = i;
+	}
+
 
 	while(!m_exit_of_run){
 		// Pool the FERS card to het an event
@@ -303,18 +326,24 @@ void FERSProducer::RunLoop(){
 			//
 			auto tp_trigger = std::chrono::steady_clock::now();
 			auto tp_end_of_busy = tp_trigger + m_ms_busy;
+			
+			// if (DataQualifier!=0){
+			// 	std::cout << "FERSProducer::RunLoop() | time_ns " << std::fixed << std::setprecision(16) << time_ns/1e9 << " | (DataQualifier): " << DataQualifier << " OK ";
+			// }else{
+			// 	std::cout << "FERSProducer::RunLoop() | time_ns " << std::fixed << std::setprecision(16) << time_ns/1e9 << " | (DataQualifier): " << DataQualifier;
+			// }
+
 			// event creation
 			if(((DataQualifier & 0xF) == DTQ_SPECT) || ((DataQualifier & 0xF) == DTQ_TSPECT)){
 				SpectEvent_t* Ev = (SpectEvent_t*)Event;
 				current_trgid[brd] = Ev->trigger_id;
-				current_tstamp_us[brd] = tstamp_us;
+				current_tstamp_us[brd] = tstamp_us;			std::cout << current_tstamp_us[brd]/1e6;
 				current_eventAbs_tstamp_ns[brd] = runStartTime_ns + tstamp_us*1e3;
 
 				// SaveList(b, Stats.current_tstamp_us[b], Stats.current_trgid[b], Ev, dtq);
-				if(DataQualifier & DTQ_SPECT){
+				// if(DataQualifier & DTQ_SPECT){
 					
 					uint8_t datatype = 0x0;	// XXTA XCHL	C=Counting T=ToT A=ToA (timestamp) H=HG L=LG - not use in Counting/Timimng mode alone for the moment
-					uint8_t i, b8 = brd;
 
 					CLEAR_nametypes Ev_data;
 					Ev_data.run = run_n;
@@ -325,11 +354,19 @@ void FERSProducer::RunLoop(){
 					Ev_data.timestamp = (runStartTime_ns+tstamp_us*1e3)*1e-9;
 					Ev_data.timestamp_sw = time_ns*1e-9;
 					// Ev_data.hold = ;
-					// Ev_data.gain = ;
-					// Ev_data.fers_ch = static_cast<uint64_t>(Ev->chmask);
-					// // Ev_data.strip = ;
-					// Ev_data.lg = static_cast<int32_t>(Ev->energyLG);
-					// Ev_data.hg = static_cast<int32_t>(Ev->energyHG);
+					// Ev_data.strip = ;
+					
+					// std::cout << " (Ev->trigger_id, trigger_n) = (" << (Ev->trigger_id) << ", " << (trigger_n)  << ")\nFERSProducer::RunLoop() | Event size in bytes: " << nb << " Ev_data.lg: \n";
+					for (int i = 0; i < 64; ++i) {
+						Ev_data.gain[i] = (uint32_t)WDcfg.LG_Gain[0][i];
+						Ev_data.fers_ch[i] = linspace[i];
+						// Cast to int16_t first to interpret as signed, then assign to int32_t
+						Ev_data.lg[i] = static_cast<int32_t>(static_cast<int16_t>(Ev->energyLG[i]));
+						Ev_data.hg[i] = static_cast<int32_t>(static_cast<int16_t>(Ev->energyHG[i]));
+						// std::cout << "(" << i << ": " << Ev->energyLG[i] << "," << Ev->energyHG[i] << "), ";
+						}
+					// std::cout << std::endl;
+
 					
 					// Create the event
 					auto eudaqEv = eudaq::Event::MakeUnique("fers"); 
@@ -351,7 +388,7 @@ void FERSProducer::RunLoop(){
 
 					eudaqEv->AddBlock(0, buffer);
 					SendEvent(std::move(eudaqEv));
-				}
+				// }
 
 
 				// if (trigger_n < m_fers_add_events) std::this_thread::sleep_until(tp_end_of_busy);
@@ -360,6 +397,8 @@ void FERSProducer::RunLoop(){
 			}else{
 				// EUDAQ_WARN("DataQualifier is not SPECT: "+std::to_string(DataQualifier));
 			}
+
+			// std::cout << std::endl;
 		}else if(status<0){
 			// Error, stop the acquisition
 			EUDAQ_THROW("Error in FERS_GetEvent: "+std::to_string(status));
@@ -367,6 +406,6 @@ void FERSProducer::RunLoop(){
 		}
 
 		// This is to reduce the polling rate in order not to reduce CPU load and not overload the bandwidth 
-		std::this_thread::sleep_for(std::chrono::milliseconds(5));
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 }
