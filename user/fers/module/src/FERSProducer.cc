@@ -212,7 +212,6 @@ void FERSProducer::DoConfigure(){
 	std::cout << "WDcfg.NumBrd " << WDcfg.NumBrd << std::endl;
 	for (int b = 0; b < WDcfg.NumBrd; b++) {
 		int ret  = FERS_InitReadout(handle[b], ROmode, &a1);
-		memset(&sEvt[b], 0, sizeof(ServEvent_t));
 		std::cout << "FERS_InitReadout() handle[g] " << handle[b] << std::endl;	
 	
 		if (ret < 0)	EUDAQ_THROW((std::string("Unable to FERS_InitReadout board ") + std::to_string(b) + std::to_string(ret)).c_str());
@@ -225,9 +224,6 @@ void FERSProducer::DoConfigure(){
 	}
 
 	// Additional cfg instructions
-	FERS_EnableRawdataWriteFile((WDcfg.OutFileEnableMask & OUTFILE_RAW_LL), WDcfg.DataFilePath, RunVars.RunNumber);
-	FERS_EnableLimitRawdataFileSize(WDcfg.EnableMaxFileSize, WDcfg.MaxOutFileSize);
-	FERS_EnableRawdataReadFile(WDcfg.EnableRawDataRead);
 	FERS_SetEnergyBitsRange(WDcfg.Range_14bit);					// @grutta this is fundamental to work!
 
 	m_fers_add_events = conf->Get("FERS_ADD_EVENTS",0);
