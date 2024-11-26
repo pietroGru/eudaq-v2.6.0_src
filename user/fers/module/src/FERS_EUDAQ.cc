@@ -39,30 +39,18 @@ std::fstream runfile[MAX_NBRD]; // pointers to ascii output data files
 //     ("lg",          np.zeros(64, dtype=np.int32),               "lg[64]/I",        "fers low-gain (signed) adc [int32]"),
 //     ("hg",          np.zeros(64, dtype=np.int32),               "hg[64]/I",        "fers high-gain (signed) adc [int32]")           
 // ]
-struct FERS_nametypes{
-  uint32_t      run = 0;
-  double        runTime = 0.0;
-  uint32_t      event = 0;
-  uint32_t      fers_evt = 0;
-  double        fers_trgtime = 0.0;
-  double        timestamp = 0.0;
-  double        timestamp_sw = 0.0;
-  uint32_t      hold = 0;
-  uint32_t      gain[64] = {0};
-  uint32_t      fers_ch[64] = {0};
-  uint32_t      strip[64] = {0};
-  int32_t       lg[64] = {0};
-  int32_t       hg[64] = {0};
-};
+
 
 u_int stripmap[64] = {65, 67, 69, 71, 73, 75, 77, 79, 81, 83, 85, 87, 89, 91, 93, 95, 97, 99, 101, 103, 105, 107, 109, 111, 113, 115, 117, 119, 121, 123, 125, 127, 128, 126, 124, 122, 120, 118, 116, 114, 112, 110, 108, 106, 104, 102, 100, 98, 96, 94, 92, 90, 88, 86, 84, 82, 80, 78, 76, 74, 72, 70, 68, 66};
+
+
 
 
 
 void FERSpack_CLEAR_event(void* Event, int plane_id, int run_number, int event_number, int add_events, double time_begin, std::vector<uint8_t> &vec)
 {
   const int nchan = 64;
-  FERS_nametypes fers_struct;
+  CLEAR_nametypes fers_struct;
   size_t structSize = sizeof(fers_struct);
   // temporary event, used to correctly interpret the Event.
   // The same technique is used in the other pack routines as well
@@ -104,8 +92,6 @@ void FERSpack_CLEAR_event(void* Event, int plane_id, int run_number, int event_n
   std::cout << std::endl;
   memcpy(vec.data(), &fers_struct, structSize);
 }
-
-
 
 
 
