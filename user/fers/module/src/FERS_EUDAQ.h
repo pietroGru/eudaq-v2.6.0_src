@@ -40,7 +40,24 @@ static const std::map<uint8_t, int> event_lengths =
 { DTQ_STAIRCASE , sizeof(StaircaseEvent_t)}
 };                                
                                   
-                                  
+
+struct CLEAR_nametypes{
+  uint32_t      run = 0;
+  double        runTime = 0.0;
+  uint32_t      event = 0;
+  uint32_t      fers_evt = 0;
+  double        fers_trgtime = 0.0;
+  double        timestamp = 0.0;
+  double        timestamp_sw = 0.0;
+  uint32_t      hold = 0;
+  uint32_t      gain[64] = {0};
+  uint32_t      fers_ch[64] = {0};
+  uint32_t      strip[64] = {0};
+  int32_t       lg[64] = {0};
+  int32_t       hg[64] = {0};
+};
+
+
 //////////////////////////        
 // use this to pack every kind of  event
 void FERSpackevent(void* Event, int plane_id, int dataqualifier, std::vector<uint8_t> *vec);
@@ -94,4 +111,7 @@ void FERSpack(int nbits, uint32_t input, std::vector<uint8_t> *vec);
 uint16_t FERSunpack16(int index, std::vector<uint8_t> vec);
 uint32_t FERSunpack32(int index, std::vector<uint8_t> vec);
 uint64_t FERSunpack64(int index, std::vector<uint8_t> vec);
+
+
+
 #endif
