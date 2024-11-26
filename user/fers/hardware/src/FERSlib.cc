@@ -52,13 +52,13 @@ int FERS_TotalAllocatedMem = 0;							// Total allocated memory
 int FERS_ReadoutStatus = 0;								// Status of the readout processes (idle, running, flushing, etc...)
 int FERS_RunningCnt = 0;								// Num of running boards 
 int FERS_Offline = 0;									// Offline connection for Raw Data reading
-uint16_t MaxEnergyRange;								// Max energy given from ADCs (13 or 14 bits)
+uint16_t MaxEnergyRange = (1 << 13) - 1;				// Max energy given from ADCs (13 or 14 bits)		// @grutta default initialization
 #ifdef _WIN32
 mutex_t FERS_RoMutex = NULL;							// Mutex for the access to FERS_ReadoutStatus
 #else
 mutex_t FERS_RoMutex;									// Mutex for the access to FERS_ReadoutStatus
 #endif
-int DebugLogs = 0;										// Debug Logs
+int DebugLogs = 0;										// Debug Logs										// @grutta
 uint8_t EnableRawData = 0;								// Enable LowLevel data saving
 uint8_t ProcessRawData = 0;								// Enable ReadingOut the RawData file saved
 uint8_t EnableMaxSizeFile;								// Enable the Max size for Raw Data file saving
